@@ -21,6 +21,9 @@ contract PresaleETH is Ownable {
 	// how much has been raised by crowdsale (in INK)
 	uint256 public amountRaisedINK;
 
+	// how much has been claimed by user (ink token)
+	uint256 public amountTotalClaimed;
+
 	// the balance of investor's ETH
 	mapping(address => uint256) public balanceOfETH;
 
@@ -30,7 +33,6 @@ contract PresaleETH is Ownable {
 	// start & end date of the crowdsale
 	uint256 public start;
 	uint256 public deadline;
-	uint256 public end;
 	uint256 public lastClaimed;
 
 	// cliff duration
@@ -49,11 +51,8 @@ contract PresaleETH is Ownable {
 	uint256 public minAmount;
 	uint256 public maxAmount;
 
-	// lock state of buy token
-	bool public lockState = false;
-
 	// notifying transfers and the success of the crowdsale
-	event GoalReached(address beneficiary, uint256 amountRaisedETH);
+	event GoalReached(address beneficiary, uint256 amountRaisedINK);
 	event FundsTransfer(
 		address backer,
 		uint256 amountETH,
@@ -83,7 +82,7 @@ contract PresaleETH is Ownable {
 		inkToken = _inkToken;
 		start = _start;
 		deadline = _deadline;
-		end = deadline.add(vestingPeriod);
+		cliff = _deadline;
 		lastClaimed = _deadline;
 	}
 
@@ -129,12 +128,11 @@ contract PresaleETH is Ownable {
 	{
 		require(
 			presaleClosed == false && block.timestamp < deadline,
-			"Don't set vesting parameter in presale."
+			"vesting parameter can't change."
 		);
 		vestingPeriod = _vestingPeriod;
 		cliff = _cliff;
-		lastClaimed = deadline.add(cliff);
-		end = deadline.add(cliff).add(vestingPeriod);
+		lastClaimed = _cliff;
 	}
 
 	// invest ETH by whitelisted user
@@ -144,9 +142,13 @@ contract PresaleETH is Ownable {
 			presaleClosed == false && block.timestamp < deadline,
 			"Presale is closed."
 		);
-		require(amountETH >= minAmount, "Fund is less than minimum amount.");
 
 		uint256 predictETHAmount = balanceOfETH[msg.sender].add(amountETH);
+		require(
+			predictETHAmount >= minAmount,
+			"Fund is less than minimum amount."
+		);
+
 		require(
 			predictETHAmount <= maxAmount,
 			"Fund is more than maximum amount."
@@ -161,7 +163,7 @@ contract PresaleETH is Ownable {
 
 		if (amountRaisedINK >= MAXGOAL) {
 			presaleClosed = true;
-			emit GoalReached(msg.sender, amountRaisedETH);
+			emit GoalReached(msg.sender, amountRaisedINK);
 		}
 
 		emit FundsTransfer(msg.sender, amountETH, true, amountRaisedETH);
@@ -171,8 +173,8 @@ contract PresaleETH is Ownable {
 	function claim() external afterClosed onlyWhitelisted {
 		uint256 balance = balanceOfINK[msg.sender];
 		require(balance > 0, "Zero amount paid.");
-		require(lockState == true, "INK token is locked.");
 		require(block.timestamp > lastClaimed, "Cliam is not available.");
+		uint256 end = cliff.add(vestingPeriod);
 		uint256 duration;
 		if (block.timestamp >= end) {
 			duration = end.sub(lastClaimed);
@@ -184,6 +186,7 @@ contract PresaleETH is Ownable {
 
 		uint256 claimableAmount = balance.mul(duration).div(vestingPeriod);
 		inkToken.transfer(msg.sender, claimableAmount);
+		amountTotalClaimed.add(claimableAmount);
 	}
 
 	// withdraw raised funds by admin
@@ -194,14 +197,19 @@ contract PresaleETH is Ownable {
 		payableOwner.transfer(balance);
 	}
 
+	// withdraw remaind ink token by admin
+	function withdrawInkToken() external onlyOwner afterClosed {
+		uint256 amount = inkToken
+			.balanceOf(address(this))
+			.add(amountTotalClaimed)
+			.sub(amountRaisedINK);
+		require(amount > 0, "withdraw inktoken amount is zero");
+		inkToken.transfer(owner(), amount);
+	}
+
 	// deposit ink token to this contract by admin
 	function deposit(uint256 amount) external onlyOwner {
 		require(amount > 0, "deposit amount is zero.");
 		inkToken.transferFrom(msg.sender, address(this), amount);
-	}
-
-	// lock/unlock buy token by admin
-	function lock(bool _lockState) external onlyOwner {
-		lockState = _lockState;
 	}
 }

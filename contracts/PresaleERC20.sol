@@ -21,6 +21,9 @@ contract PresaleERC20 is Ownable {
 	// how much has been raised by crowdsale (buy token);
 	uint256 public amountTotalBought;
 
+	// how much has been claimed by user (buy token)
+	uint256 public amountTotalClaimed;
+
 	// the balance of investor's pay token
 	mapping(address => uint256) public balanceOfPay;
 
@@ -30,7 +33,6 @@ contract PresaleERC20 is Ownable {
 	// start & deadline date of the crowdsale
 	uint256 public start;
 	uint256 public deadline;
-	uint256 public end;
 	uint256 public lastClaimed;
 
 	// cliff duration
@@ -52,11 +54,8 @@ contract PresaleERC20 is Ownable {
 	uint256 public minAmount;
 	uint256 public maxAmount;
 
-	// lock state of buy token
-	bool public lockState = false;
-
 	// notifying transfers and the success of the crowdsale
-	event GoalReached(address beneficiary, uint256 amountPaid);
+	event GoalReached(address beneficiary, uint256 amountBought);
 	event FundsTransfer(
 		address backer,
 		uint256 amount,
@@ -88,7 +87,7 @@ contract PresaleERC20 is Ownable {
 		buyToken = _buyToken;
 		start = _start;
 		deadline = _deadline;
-		end = _deadline.add(vestingPeriod);
+		cliff = _deadline;
 		lastClaimed = _deadline;
 	}
 
@@ -130,12 +129,11 @@ contract PresaleERC20 is Ownable {
 	{
 		require(
 			presaleClosed == false && block.timestamp < deadline,
-			"Don't set vesting parameter in presale."
+			"vesting parameter can't change."
 		);
 		vestingPeriod = _vestingPeriod;
 		cliff = _cliff;
-		lastClaimed = deadline.add(cliff);
-		end = deadline.add(cliff).add(vestingPeriod);
+		lastClaimed = _cliff;
 	}
 
 	// invest pay token by whitelisted user
@@ -144,9 +142,14 @@ contract PresaleERC20 is Ownable {
 			presaleClosed == false && block.timestamp < deadline,
 			"Presale is closed."
 		);
-		require(amountPay >= minAmount, "Fund is less than minimum amount.");
 
 		uint256 predictPaidAmount = balanceOfPay[msg.sender].add(amountPay);
+
+		require(
+			predictPaidAmount >= minAmount,
+			"Fund is less than minimum amount."
+		);
+
 		require(
 			predictPaidAmount <= maxAmount,
 			"Fund is more than maximum amount."
@@ -173,8 +176,8 @@ contract PresaleERC20 is Ownable {
 	function claim() external afterClosed onlyWhitelisted {
 		uint256 balance = balanceOfBuy[msg.sender];
 		require(balance > 0, "Zero amount paid.");
-		require(lockState == true, "Buy token is locked.");
 		require(block.timestamp > lastClaimed, "Cliam is not available.");
+		uint256 end = cliff.add(vestingPeriod);
 		uint256 duration;
 		if (block.timestamp >= end) {
 			duration = end.sub(lastClaimed);
@@ -185,23 +188,29 @@ contract PresaleERC20 is Ownable {
 		lastClaimed = block.timestamp;
 
 		uint256 claimableAmount = balance.mul(duration).div(vestingPeriod);
-		payToken.transfer(msg.sender, claimableAmount);
+		buyToken.transfer(msg.sender, claimableAmount);
+		amountTotalClaimed.add(claimableAmount);
 	}
 
 	// withdraw raised funds by admin
 	function withdrawPayToken() external onlyOwner afterClosed {
-		require(amountTotalPaid > 0, "paid amount is zero.");
+		require(amountTotalPaid > 0, "withdraw paytoken amount is zero.");
 		payToken.transfer(owner(), amountTotalPaid);
+	}
+
+	// withdraw remained buy token by admin
+	function withdrawBuyToken() external onlyOwner afterClosed {
+		uint256 amount = buyToken
+			.balanceOf(address(this))
+			.add(amountTotalClaimed)
+			.sub(amountTotalBought);
+		require(amount > 0, "withdraw buytoken amount is zero");
+		buyToken.transfer(owner(), amount);
 	}
 
 	// deposit buy token to this contract by admin
 	function deposit(uint256 amount) external onlyOwner {
 		require(amount > 0, "deposit amount is zero.");
 		buyToken.transferFrom(msg.sender, address(this), amount);
-	}
-
-	// lock/unlock buy token by admin
-	function lock(bool _lockState) external onlyOwner {
-		lockState = _lockState;
 	}
 }
