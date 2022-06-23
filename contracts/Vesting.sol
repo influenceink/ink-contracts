@@ -14,12 +14,27 @@ contract Vesting {
 	address private defaultINK;
 
 	mapping(address => Beneficiary) private _vestingWallets;
+
+	uint256 private _totalAllocation;
+	uint256 private _totalReleased;
 	uint256 private immutable _startTime;
 	uint256 private immutable _cliff;
 
-	constructor(uint256 _startTimeStamp, uint256 _cliffSeconds) {
+	bool private _paused;
+
+	constructor(
+		address _token,
+		uint256 _allocation,
+		uint256 _startTimeStamp,
+		uint256 _cliffSeconds
+	) {
+		defaultINK = _token;
+		_totalAllocation = _allocation;
 		_cliff = _cliffSeconds;
 		_startTime = _startTimeStamp;
+
+		_totalReleased = 0;
+		_paused = false;
 	}
 
 	function addVestingWallet(
@@ -55,17 +70,35 @@ contract Vesting {
 	}
 
 	function claim(address _vestingWallet) external {
+		require(!_paused, "Vesting is paused.");
+
 		uint256 claimable = _vestedAmount(
 			_vestingWallet,
-			uint64(block.timestamp)
+			uint256(block.timestamp)
 		) - _vestingWallets[_vestingWallet].claimed;
 
+		require(
+			_totalAllocation >= _totalReleased + claimable,
+			"The total allocation is overspent."
+		);
+
+		_totalReleased += claimable;
 		_vestingWallets[_vestingWallet].claimed += claimable;
+
 		emit INKClaimed(_vestingWallet, claimable);
+
 		SafeERC20.safeTransfer(IERC20(defaultINK), _vestingWallet, claimable);
 	}
 
-	function _vestedAmount(address _vestingWallet, uint64 timeStamp)
+	function vestedAmount(address _vestingWallet)
+		public
+		view
+		returns (uint256)
+	{
+		return _vestedAmount(_vestingWallet, block.timestamp);
+	}
+
+	function _vestedAmount(address _vestingWallet, uint256 timeStamp)
 		internal
 		view
 		returns (uint256)
