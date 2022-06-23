@@ -63,7 +63,7 @@ contract PresaleETH is Ownable {
 	modifier afterClosed() {
 		require(
 			presaleClosed == true || block.timestamp >= deadline,
-			"Presale is not closed."
+			"presale is not closed."
 		);
 		_;
 	}
@@ -112,12 +112,14 @@ contract PresaleETH is Ownable {
 
 	// set investment range
 	function setRange(uint256 _min, uint256 _max) external onlyOwner {
+		require(_max > _min && _min > 0, "set invalid range.");
 		minAmount = _min;
 		maxAmount = _max;
 	}
 
 	// set price
 	function setPrice(uint256 _price) external onlyOwner {
+		require(_price > 0, "price is zero.");
 		price = _price;
 	}
 
@@ -140,24 +142,24 @@ contract PresaleETH is Ownable {
 		uint256 amountETH = msg.value;
 		require(
 			presaleClosed == false && block.timestamp < deadline,
-			"Presale is closed."
+			"presale is closed."
 		);
 
 		uint256 predictETHAmount = balanceOfETH[msg.sender].add(amountETH);
 		require(
 			predictETHAmount >= minAmount,
-			"Fund is less than minimum amount."
+			"fund is less than minimum amount."
 		);
 
 		require(
 			predictETHAmount <= maxAmount,
-			"Fund is more than maximum amount."
+			"fund is more than maximum amount."
 		);
 
 		balanceOfETH[msg.sender] = predictETHAmount;
 		amountRaisedETH = amountRaisedETH.add(amountETH);
 
-		uint256 amountINK = amountETH.mul(price);
+		uint256 amountINK = amountETH.mul(price).div(1 ether);
 		balanceOfINK[msg.sender] = balanceOfINK[msg.sender].add(amountINK);
 		amountRaisedINK = amountRaisedINK.add(amountINK);
 
@@ -171,28 +173,39 @@ contract PresaleETH is Ownable {
 
 	// claim available amount of ink token accroding to vesting strategy by whitelisted user
 	function claim() external afterClosed onlyWhitelisted {
-		uint256 balance = balanceOfINK[msg.sender];
-		require(balance > 0, "Zero amount paid.");
-		require(block.timestamp > lastClaimed, "Cliam is not available.");
-		uint256 end = cliff.add(vestingPeriod);
-		uint256 duration;
-		if (block.timestamp >= end) {
-			duration = end.sub(lastClaimed);
-			balanceOfINK[msg.sender] = 0;
-		} else {
-			duration = block.timestamp.sub(lastClaimed);
-		}
-		lastClaimed = block.timestamp;
-
-		uint256 claimableAmount = balance.mul(duration).div(vestingPeriod);
+		uint256 claimableAmount = getClaimableAmount();
 		inkToken.transfer(msg.sender, claimableAmount);
 		amountTotalClaimed.add(claimableAmount);
+		lastClaimed = block.timestamp;
+		if (block.timestamp >= cliff.add(vestingPeriod))
+			balanceOfINK[msg.sender] = 0;
+	}
+
+	function getClaimableAmount()
+		public
+		view
+		afterClosed
+		onlyWhitelisted
+		returns (uint256)
+	{
+		uint256 balance = balanceOfINK[msg.sender];
+		require(balance > 0, "zero amount paid.");
+		require(
+			block.timestamp >= cliff,
+			"claim is not available before cliff."
+		);
+		uint256 end = cliff.add(vestingPeriod);
+		uint256 duration = (block.timestamp >= end)
+			? end.sub(lastClaimed)
+			: block.timestamp.sub(lastClaimed);
+
+		return balance.mul(duration).div(vestingPeriod);
 	}
 
 	// withdraw raised funds by admin
 	function withdrawETH() external onlyOwner afterClosed {
 		uint256 balance = address(this).balance;
-		require(balance > 0, "ETH balance is zero.");
+		require(balance > 0, "withdraw ETH amount is zero.");
 		address payable payableOwner = payable(owner());
 		payableOwner.transfer(balance);
 	}

@@ -10,7 +10,7 @@ contract PresaleERC20 is Ownable {
 	using SafeMath for uint256;
 
 	// the maximum amount of tokens to be sold
-	uint256 private constant MAXGOAL = 437500000000;
+	uint256 public MAXGOAL = 437500000000;
 
 	// duration of vesting
 	uint256 public vestingPeriod = 48 * 30 days;
@@ -66,7 +66,7 @@ contract PresaleERC20 is Ownable {
 	modifier afterClosed() {
 		require(
 			presaleClosed == true || block.timestamp >= deadline,
-			"Presale is not closed."
+			"presale is not closed."
 		);
 		_;
 	}
@@ -113,12 +113,14 @@ contract PresaleERC20 is Ownable {
 
 	// set investment range
 	function setRange(uint256 _min, uint256 _max) external onlyOwner {
+		require(_max > _min && _min > 0, "set invalid range.");
 		minAmount = _min;
 		maxAmount = _max;
 	}
 
 	// set price
 	function setPrice(uint256 _price) external onlyOwner {
+		require(_price > 0, "price is zero.");
 		price = _price;
 	}
 
@@ -140,19 +142,19 @@ contract PresaleERC20 is Ownable {
 	function invest(uint256 amountPay) external onlyWhitelisted {
 		require(
 			presaleClosed == false && block.timestamp < deadline,
-			"Presale is closed."
+			"presale is closed."
 		);
 
 		uint256 predictPaidAmount = balanceOfPay[msg.sender].add(amountPay);
 
 		require(
 			predictPaidAmount >= minAmount,
-			"Fund is less than minimum amount."
+			"fund is less than minimum amount."
 		);
 
 		require(
 			predictPaidAmount <= maxAmount,
-			"Fund is more than maximum amount."
+			"fund is more than maximum amount."
 		);
 
 		balanceOfPay[msg.sender] = predictPaidAmount;
@@ -174,22 +176,33 @@ contract PresaleERC20 is Ownable {
 
 	// claim available amount of buy token accroding to vesting strategy by whitelisted user
 	function claim() external afterClosed onlyWhitelisted {
-		uint256 balance = balanceOfBuy[msg.sender];
-		require(balance > 0, "Zero amount paid.");
-		require(block.timestamp > lastClaimed, "Cliam is not available.");
-		uint256 end = cliff.add(vestingPeriod);
-		uint256 duration;
-		if (block.timestamp >= end) {
-			duration = end.sub(lastClaimed);
-			balanceOfBuy[msg.sender] = 0;
-		} else {
-			duration = block.timestamp.sub(lastClaimed);
-		}
-		lastClaimed = block.timestamp;
-
-		uint256 claimableAmount = balance.mul(duration).div(vestingPeriod);
+		uint256 claimableAmount = getClaimableAmount();
 		buyToken.transfer(msg.sender, claimableAmount);
 		amountTotalClaimed.add(claimableAmount);
+		lastClaimed = block.timestamp;
+		if (block.timestamp >= cliff.add(vestingPeriod))
+			balanceOfBuy[msg.sender] = 0;
+	}
+
+	function getClaimableAmount()
+		public
+		view
+		afterClosed
+		onlyWhitelisted
+		returns (uint256)
+	{
+		uint256 balance = balanceOfBuy[msg.sender];
+		require(balance > 0, "zero amount paid.");
+		require(
+			block.timestamp >= cliff,
+			"claim is not available before cliff."
+		);
+		uint256 end = cliff.add(vestingPeriod);
+		uint256 duration = (block.timestamp >= end)
+			? end.sub(lastClaimed)
+			: block.timestamp.sub(lastClaimed);
+
+		return balance.mul(duration).div(vestingPeriod);
 	}
 
 	// withdraw raised funds by admin
