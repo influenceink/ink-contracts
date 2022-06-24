@@ -1,10 +1,9 @@
 import { expect } from "chai"
 import { MockProvider } from "ethereum-waffle"
 import { ethers } from "hardhat"
-import { Contract } from "ethers"
+import { Contract, BigNumber } from "ethers"
 
 describe("Vesting", async function () {
-	const cliff: number = 5
 	let erc20: Contract
 	let startTimeStamp: number
 	let vesting: Contract
@@ -13,19 +12,16 @@ describe("Vesting", async function () {
 	beforeEach(async () => {
 		const [wallet] = new MockProvider().getWallets()
 		const [signer] = await ethers.getSigners()
+		startTimeStamp = Math.floor(Date.now() / 1000) + 60
 
-		const ERC20 = await ethers.getContractFactory("BasicToken", signer)
-		erc20 = await ERC20.deploy(1000)
+		erc20 = await (
+			await ethers.getContractFactory("BasicToken", signer)
+		).deploy(1000)
 		await erc20.deployed()
 
-		startTimeStamp = Math.floor(Date.now() / 1000)
-		const Vesting = await ethers.getContractFactory("Vesting", signer)
-		vesting = await Vesting.deploy(
-			erc20.address,
-			500,
-			startTimeStamp,
-			cliff
-		)
+		vesting = await (
+			await ethers.getContractFactory("Vesting", signer)
+		).deploy(erc20.address, 500, startTimeStamp)
 		await vesting.deployed()
 
 		await erc20.functions.transfer(vesting.address, 500)
@@ -33,88 +29,117 @@ describe("Vesting", async function () {
 		beneficiary = wallet.address
 	})
 
-	it("Should return the start time", async function () {
-		expect(await vesting.start()).to.equal(startTimeStamp)
+	it("test_initialization", async function () {
+		expect(await vesting.startTime()).to.equal(startTimeStamp)
+		expect(
+			(await erc20.functions.balanceOf(vesting.address)).toString()
+		).to.equal("500")
 	})
 
-	it("Should return the duration", async function () {
-		const addVestingWalletTx = await vesting.addVestingWallet(
+	it("test_addBeneficiary_vestingWallets", async function () {
+		const addBeneficiaryTx = await vesting.addBeneficiary(
 			beneficiary,
-			20,
-			50
+			60,
+			500
 		)
-		await addVestingWalletTx.wait()
+		await addBeneficiaryTx.wait()
 
-		const claimed = await vesting.claimed(beneficiary)
-		console.log("\tClaimed amount: ", claimed.toString())
-		expect(claimed).to.equal(0)
+		const result = await vesting.vestingWallets(beneficiary)
+		await expect(result.duration).to.equal(60)
+		await expect(result.totalAmount).to.equal(500)
+		await expect(result.claimed).to.equal(0)
 	})
 
-	it("Should return zero as claimed amount", async function () {
-		const addVestingWalletTx = await vesting.addVestingWallet(
+	it("test_vestedAmount", async function () {
+		const addBeneficiaryTx = await vesting.addBeneficiary(
 			beneficiary,
-			20,
-			50
+			60,
+			500
 		)
-		await addVestingWalletTx.wait()
+		await addBeneficiaryTx.wait()
 
-		const claimed = await vesting.claimed(beneficiary)
-		console.log("\tClaimed amount: ", claimed.toString())
-		expect(claimed).to.equal(0)
+		await expect(await vesting.vestedAmount(beneficiary)).to.equal(0)
+
+		let snapShot = await ethers.provider.send("evm_snapshot", [])
+		await ethers.provider.send("evm_setNextBlockTimestamp", [
+			startTimeStamp + 30,
+		])
+		await ethers.provider.send("evm_mine", [])
+
+		await expect(await vesting.vestedAmount(beneficiary)).to.equal(250)
+
+		await ethers.provider.send("evm_revert", [snapShot])
+		snapShot = await ethers.provider.send("evm_snapshot", [])
+		await ethers.provider.send("evm_setNextBlockTimestamp", [
+			startTimeStamp + 60,
+		])
+		await ethers.provider.send("evm_mine", [])
+
+		await expect(await vesting.vestedAmount(beneficiary)).to.equal(500)
+
+		await ethers.provider.send("evm_revert", [snapShot])
 	})
 
-	it("Should return total allocation", async function () {
-		const addVestingWalletTx = await vesting.addVestingWallet(
+	it("test_claim", async function () {
+		const addBeneficiaryTx = await vesting.addBeneficiary(
 			beneficiary,
-			7,
-			50
+			60,
+			500
 		)
-		await addVestingWalletTx.wait()
+		await addBeneficiaryTx.wait()
 
-		const claimTx = await vesting.claim(beneficiary)
-		await claimTx.wait()
+		let snapShot = await ethers.provider.send("evm_snapshot", [])
+		await ethers.provider.send("evm_setNextBlockTimestamp", [
+			startTimeStamp + 30,
+		])
+		await ethers.provider.send("evm_mine", [])
 
-		const vestedAmount = await vesting.vestedAmount(beneficiary)
-		const claimed = await vesting.claimed(beneficiary)
-		const balance = await erc20.functions.balanceOf(beneficiary)
-		console.log("\tClaimed amount: ", claimed.toString())
-		console.log("\tVested amount: ", vestedAmount.toString())
-		console.log("\tBalance of beneficiary: ", balance.toString())
-		expect(claimed).to.equal(50)
+		await expect(await vesting.claim(beneficiary)).to.emit(
+			vesting,
+			"INKClaimed"
+		)
+
+		await ethers.provider.send("evm_revert", [snapShot])
+		snapShot = await ethers.provider.send("evm_snapshot", [])
+		await ethers.provider.send("evm_setNextBlockTimestamp", [
+			startTimeStamp + 60,
+		])
+		await ethers.provider.send("evm_mine", [])
+
+		await expect(await vesting.claim(beneficiary))
+			.to.emit(vesting, "INKClaimed")
+			.withArgs(beneficiary, 500)
+
+		await ethers.provider.send("evm_revert", [snapShot])
 	})
 
-	it("Should return greater than zero", async function () {
-		const addVestingWalletTx = await vesting.addVestingWallet(
+	it("test_pause_resume", async function () {
+		const addBeneficiaryTx = await vesting.addBeneficiary(
 			beneficiary,
-			20,
-			50
+			60,
+			500
 		)
-		await addVestingWalletTx.wait()
+		await addBeneficiaryTx.wait()
 
-		let claimTx = await vesting.claim(beneficiary)
-		await claimTx.wait()
+		const snapShot = await ethers.provider.send("evm_snapshot", [])
+		await ethers.provider.send("evm_setNextBlockTimestamp", [
+			startTimeStamp + 30,
+		])
+		await ethers.provider.send("evm_mine", [])
 
-		let vestedAmount = await vesting.vestedAmount(beneficiary)
-		let claimed = await vesting.claimed(beneficiary)
-		let balance = await erc20.functions.balanceOf(beneficiary)
-		console.log("\tClaimed amount: ", claimed.toString())
-		console.log("\tVested amount: ", vestedAmount.toString())
-		console.log("\tBalance of beneficiary: ", balance.toString())
+		await vesting.pause()
 
-		await new Promise((res, rej) => {
-			setTimeout(() => res(true), 5000)
-		})
+		await expect(vesting.claim(beneficiary)).to.be.revertedWith(
+			"Vesting is paused."
+		)
 
-		claimTx = await vesting.claim(beneficiary)
-		await claimTx.wait()
+		await vesting.resume()
 
-		vestedAmount = await vesting.vestedAmount(beneficiary)
-		claimed = await vesting.claimed(beneficiary)
-		balance = await erc20.functions.balanceOf(beneficiary)
-		console.log("\tClaimed amount: ", claimed.toString())
-		console.log("\tVested amount: ", vestedAmount.toString())
-		console.log("\tBalance of beneficiary: ", balance.toString())
+		await expect(await vesting.claim(beneficiary)).to.emit(
+			vesting,
+			"INKClaimed"
+		)
 
-		expect(claimed).to.above(0)
+		await ethers.provider.send("evm_revert", [snapShot])
 	})
 })

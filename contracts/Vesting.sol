@@ -2,115 +2,90 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Vesting {
+contract Vesting is Ownable {
 	struct Beneficiary {
 		uint256 duration;
-		uint256 allocation;
+		uint256 totalAmount;
 		uint256 claimed;
 	}
-	event INKClaimed(address _vestingWallet, uint256 amount);
+	event INKClaimed(address _beneficiary, uint256 amount);
 
-	address private defaultINK;
+	address private vestingToken;
 
-	mapping(address => Beneficiary) private _vestingWallets;
+	mapping(address => Beneficiary) public vestingWallets;
 
-	uint256 private _totalAllocation;
+	uint256 private _totalAmount;
 	uint256 private _totalReleased;
-	uint256 private immutable _startTime;
-	uint256 private immutable _cliff;
-
+	uint256 public immutable startTime;
 	bool private _paused;
 
 	constructor(
 		address _token,
-		uint256 _allocation,
-		uint256 _startTimeStamp,
-		uint256 _cliffSeconds
+		uint256 _amount,
+		uint256 _startTime
 	) {
-		defaultINK = _token;
-		_totalAllocation = _allocation;
-		_cliff = _cliffSeconds;
-		_startTime = _startTimeStamp;
+		vestingToken = _token;
+		_totalAmount = _amount;
+		startTime = _startTime;
 
 		_totalReleased = 0;
 		_paused = false;
 	}
 
-	function addVestingWallet(
-		address _vestingWallet,
+	function addBeneficiary(
+		address _beneficiary,
 		uint256 _duration,
-		uint256 _allocation
-	) external {
+		uint256 _amount
+	) external onlyOwner {
 		require(
-			_vestingWallet != address(0),
+			_beneficiary != address(0),
 			"Vesting: Beneficiary can not be address zero."
 		);
-		_vestingWallets[_vestingWallet] = Beneficiary(
-			_duration,
-			_allocation,
-			0
-		);
+		vestingWallets[_beneficiary] = Beneficiary(_duration, _amount, 0);
 	}
 
-	function start() public view returns (uint256) {
-		return _startTime;
+	function pause() external onlyOwner {
+		_paused = true;
 	}
 
-	function duration(address _vestingWallet) public view returns (uint256) {
-		return _vestingWallets[_vestingWallet].duration;
+	function resume() external onlyOwner {
+		_paused = false;
 	}
 
-	function claimed(address _vestingWallet)
-		external
-		view
-		returns (uint256)
-	{
-		return _vestingWallets[_vestingWallet].claimed;
-	}
-
-	function claim(address _vestingWallet) external {
+	function claim(address _beneficiary) external {
 		require(!_paused, "Vesting is paused.");
 
-		uint256 claimable = _vestedAmount(
-			_vestingWallet,
-			uint256(block.timestamp)
-		) - _vestingWallets[_vestingWallet].claimed;
+		uint256 claimable = vestedAmount(_beneficiary) -
+			vestingWallets[_beneficiary].claimed;
 
 		require(
-			_totalAllocation >= _totalReleased + claimable,
-			"The total allocation is overspent."
+			_totalAmount >= _totalReleased + claimable,
+			"The total amount is overspent."
 		);
 
 		_totalReleased += claimable;
-		_vestingWallets[_vestingWallet].claimed += claimable;
+		vestingWallets[_beneficiary].claimed += claimable;
 
-		emit INKClaimed(_vestingWallet, claimable);
+		SafeERC20.safeTransfer(IERC20(vestingToken), _beneficiary, claimable);
 
-		SafeERC20.safeTransfer(IERC20(defaultINK), _vestingWallet, claimable);
+		emit INKClaimed(_beneficiary, claimable);
 	}
 
-	function vestedAmount(address _vestingWallet)
+	function vestedAmount(address _beneficiary)
 		public
 		view
 		returns (uint256)
 	{
-		return _vestedAmount(_vestingWallet, block.timestamp);
-	}
-
-	function _vestedAmount(address _vestingWallet, uint256 timeStamp)
-		internal
-		view
-		returns (uint256)
-	{
-		uint256 _duration = _vestingWallets[_vestingWallet].duration;
-		uint256 _allocation = _vestingWallets[_vestingWallet].allocation;
-		if (timeStamp < _startTime) {
+		uint256 _duration = vestingWallets[_beneficiary].duration;
+		uint256 _amount = vestingWallets[_beneficiary].totalAmount;
+		if (block.timestamp < startTime) {
 			return 0;
-		} else if (timeStamp > _startTime + _duration) {
-			return _allocation;
+		} else if (block.timestamp > startTime + _duration) {
+			return _amount;
 		} else {
-			return (_allocation * (timeStamp - _startTime)) / _duration;
+			return (_amount * (block.timestamp - startTime)) / _duration;
 		}
 	}
 }
