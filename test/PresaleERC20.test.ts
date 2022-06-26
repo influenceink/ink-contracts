@@ -2,14 +2,13 @@ import { assert, expect } from "chai";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 import { PresaleERC20 } from "../typechain-types/PresaleERC20";
-import { MockPresaleERC20 } from "../typechain-types/MockPresaleERC20";
 import { MockERC20 } from "../typechain-types/MockERC20";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 describe("PresaleERC20", function () {
   let payToken: MockERC20;
   let buyToken: MockERC20;
-  let presaleERC20: MockPresaleERC20;
+  let presaleERC20: PresaleERC20;
   let owner: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
@@ -28,11 +27,11 @@ describe("PresaleERC20", function () {
     buyToken = (await MockBuyToken.deploy("BUY", "BUY")) as MockERC20;
     await buyToken.deployed();
 
-    const PresaleERC20 = await ethers.getContractFactory("MockPresaleERC20");
+    const PresaleERC20 = await ethers.getContractFactory("PresaleERC20");
     startTime = Date.parse('21 Jun 2022 00:12:00 GMT') / 1000;
 
     endTime = startTime + 30 * 24 * 3600;
-    presaleERC20 = (await PresaleERC20.deploy(payToken.address, buyToken.address, startTime, endTime)) as MockPresaleERC20;
+    presaleERC20 = (await PresaleERC20.deploy(payToken.address, buyToken.address, startTime, endTime)) as PresaleERC20;
     await presaleERC20.deployed();
 
     await buyToken.mint(presaleERC20.address, BigNumber.from("43750000000"));
@@ -59,22 +58,22 @@ describe("PresaleERC20", function () {
     expect(await presaleERC20.lastClaimed()).to.equal(endTime);
   });
 
-  it("test_setRange_asUser_thenReverted", async () => {
-    await expect(presaleERC20.connect(user1).setRange(10, 100)).to.be.revertedWith("Ownable: caller is not the owner");
+  it("test_setPayRange_asUser_thenReverted", async () => {
+    await expect(presaleERC20.connect(user1).setPayRange(10, 100)).to.be.revertedWith("Ownable: caller is not the owner");
   });
 
-  it("test_setRange_asOwner_givenInValidRange_thenReverted", async () => {
-    await expect(presaleERC20.connect(owner).setRange(100, 10)).to.be.revertedWith("set invalid range.");
+  it("test_setPayRange_asOwner_givenInValidRange_thenReverted", async () => {
+    await expect(presaleERC20.connect(owner).setPayRange(100, 10)).to.be.revertedWith("set invalid range.");
 
-    await expect(presaleERC20.connect(owner).setRange(0, 100)).to.be.revertedWith("set invalid range.");
+    await expect(presaleERC20.connect(owner).setPayRange(0, 100)).to.be.revertedWith("set invalid range.");
   });
 
-  it("test_setRange_asOwner_givenValidRange_thenSuccess", async () => {
+  it("test_setPayRange_asOwner_givenValidRange_thenSuccess", async () => {
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 100);
+    await presaleERC20.setPayRange(10, 100);
 
-    expect(await presaleERC20.minAmount()).to.equal(10);
-    expect(await presaleERC20.maxAmount()).to.equal(100);
+    expect(await presaleERC20.minPayAmount()).to.equal(10);
+    expect(await presaleERC20.maxPayAmount()).to.equal(100);
   });
 
   it("test_setPrice_asUser_thenReverted", async () => {
@@ -125,73 +124,74 @@ describe("PresaleERC20", function () {
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
-  it("test_invest_givenLessThanMinAmount_thenReverted", async () => {
+  it("test_invest_givenLessThanminPayAmount_thenReverted", async () => {
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 100);
+    await presaleERC20.setPayRange(10, 100);
 
     await expect(presaleERC20.invest(3)).to.be.revertedWith("fund is less than minimum amount.");
   });
 
-  it("test_invest_givenMoreThanMaxAmount_thenReverted", async () => {
+  it("test_invest_givenMoreThanmaxPayAmount_thenReverted", async () => {
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 100);
+    await presaleERC20.setPayRange(10, 100);
 
     await expect(presaleERC20.invest(200)).to.be.revertedWith("fund is more than maximum amount.");
   });
 
   it("test_invest_givenValidAmount_thenSuccessAndEmitFundsTransferEvent", async () => {
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 100);
+    await presaleERC20.setPayRange(10, 100);
 
     await payToken.connect(user1).approve(presaleERC20.address, 10000);
 
     await presaleERC20.connect(owner).setPrice(100000000);
     const tx = await presaleERC20.connect(user1).invest(20);
 
-    await expect(await presaleERC20.checkFundsPaid(user1.address)).to.equal(20);
+    await expect(await presaleERC20.balanceOfPay(user1.address)).to.equal(20);
     await expect(await presaleERC20.connect(owner).amountTotalPaid()).to.equal(20);
-    await expect(await presaleERC20.checkFundsBuy(user1.address)).to.equal(20 * 100000000);
+    await expect(await presaleERC20.balanceOfBuy(user1.address)).to.equal(20 * 100000000);
     await expect(await presaleERC20.connect(owner).amountTotalBought()).to.equal(20 * 100000000);
     await expect(tx).to.emit(presaleERC20, 'FundsTransfer').withArgs(user1.address, 20, true, 20);
   });
 
   it("test_invest_reachGoal_thenSuccessAndEmitGoalReachedEvent", async () => {
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 10000);
+    await presaleERC20.setPayRange(10, 10000);
 
-    await presaleERC20.connect(owner).setPrice(100000000);
+    await presaleERC20.connect(owner).setPrice(ethers.utils.parseEther("100000000"));
     const tx = await presaleERC20.connect(user1).invest(4376);
 
-    await expect(await presaleERC20.checkFundsPaid(user1.address)).to.equal(4376);
+    await expect(await presaleERC20.balanceOfPay(user1.address)).to.equal(4376);
     await expect(await presaleERC20.connect(owner).amountTotalPaid()).to.equal(4376);
-    await expect(await presaleERC20.checkFundsBuy(user1.address)).to.equal(4376 * 100000000);
-    await expect(await presaleERC20.connect(owner).amountTotalBought()).to.equal(4376 * 100000000);
+    await expect(await presaleERC20.balanceOfBuy(user1.address)).to.equal(ethers.utils.parseEther("437600000000"));
+    await expect(await presaleERC20.connect(owner).amountTotalBought()).to.equal(ethers.utils.parseEther("437600000000"));
     await expect(tx).to.emit(presaleERC20, 'FundsTransfer').withArgs(user1.address, 4376, true, 4376);
 
-    await expect(tx).to.emit(presaleERC20, 'GoalReached').withArgs(user1.address, 4376 * 100000000);
+    await expect(tx).to.emit(presaleERC20, 'GoalReached').withArgs(user1.address, ethers.utils.parseEther("437600000000"));
   });
 
   it("test_getClamiableAmount_beforePresaleClosed_thenReverted", async () => {
     await expect(await presaleERC20.presaleClosed()).to.be.false;
-    const now = await presaleERC20.getTimestamp();
+    const blockNumber = await ethers.provider.getBlockNumber();
+    const block = await ethers.provider.getBlock(blockNumber);
     const deadline = await presaleERC20.deadline();
-    await expect(deadline.toNumber()).to.be.gt(now.toNumber());
+    await expect(deadline.toNumber()).to.be.gt(block.timestamp);
     await expect(presaleERC20.connect(user2).getClaimableAmount()).to.be.revertedWith("presale is not closed.");
   });
 
-  it("test_getClamiableAmount_zeroAmountPaid_thenReverted", async () => {
+  it("test_getClamiableAmount_zeroAmountPaid_thenReturnZero", async () => {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
     const timeUntilPresaleClosed = endTime - Date.now() / 1000;
     await ethers.provider.send('evm_increaseTime', [timeUntilPresaleClosed]);
     await ethers.provider.send('evm_mine', []);
 
-    await expect(presaleERC20.connect(user2).getClaimableAmount()).to.be.revertedWith("zero amount paid.");
+    expect(await presaleERC20.connect(user2).getClaimableAmount()).to.equal(0);
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
-  it("test_getClamiableAmount_beforeCliff_thenReverted", async () => {
+  it("test_getClamiableAmount_beforeCliff_thenReturnZero", async () => {
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 10000);
+    await presaleERC20.setPayRange(10, 10000);
     await presaleERC20.setVestingParameter(vestingPeriod, cliff);
 
     await presaleERC20.connect(user2).invest(30);
@@ -201,7 +201,7 @@ describe("PresaleERC20", function () {
     await ethers.provider.send('evm_increaseTime', [timeUntilPresaleClosed]);
     await ethers.provider.send('evm_mine', []);
 
-    await expect(presaleERC20.connect(user2).getClaimableAmount()).to.be.revertedWith("claim is not available before cliff.");
+    expect(await presaleERC20.connect(user2).getClaimableAmount()).to.equal(0)
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
@@ -209,16 +209,20 @@ describe("PresaleERC20", function () {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
 
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 10000);
+    await presaleERC20.setPayRange(10, 10000);
     await presaleERC20.setVestingParameter(vestingPeriod, cliff);
     await presaleERC20.setPrice(100000000);
 
     await presaleERC20.connect(user1).invest(20);
 
-    const now = await presaleERC20.getTimestamp();
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - now.toNumber();
+    let blockNumber = await ethers.provider.getBlockNumber();
+    let block = await ethers.provider.getBlock(blockNumber);
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
+
+    blockNumber = await ethers.provider.getBlockNumber();
+    block = await ethers.provider.getBlock(blockNumber);
 
     const claimable = await presaleERC20.connect(user1).getClaimableAmount();
     expect(claimable).to.equal(1000000000);
@@ -229,14 +233,16 @@ describe("PresaleERC20", function () {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
 
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 10000);
+    await presaleERC20.setPayRange(10, 10000);
     await presaleERC20.setVestingParameter(vestingPeriod, cliff);
     await presaleERC20.setPrice(100000000);
 
     await presaleERC20.connect(user1).invest(20);
 
-    const now = await presaleERC20.getTimestamp();
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - now.toNumber();
+    const blockNumber = await ethers.provider.getBlockNumber();
+    const block = await ethers.provider.getBlock(blockNumber);
+
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -249,7 +255,7 @@ describe("PresaleERC20", function () {
 
     await presaleERC20.connect(user1).claim();
 
-    await expect(await presaleERC20.checkFundsBuy(user1.address)).to.equal(0);
+    await expect(await presaleERC20.balanceOfBuy(user1.address)).to.equal(0);
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
@@ -257,12 +263,14 @@ describe("PresaleERC20", function () {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
 
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 10000);
+    await presaleERC20.setPayRange(10, 10000);
     await presaleERC20.setVestingParameter(vestingPeriod, cliff);
     await presaleERC20.setPrice(100000000);
 
-    const now = await presaleERC20.getTimestamp();
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - now.toNumber();
+    const blockNumber = await ethers.provider.getBlockNumber();
+    const block = await ethers.provider.getBlock(blockNumber);
+
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -275,14 +283,16 @@ describe("PresaleERC20", function () {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
 
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 10000);
+    await presaleERC20.setPayRange(10, 10000);
     await presaleERC20.setVestingParameter(vestingPeriod, cliff);
     await presaleERC20.setPrice(100000000);
 
     await presaleERC20.connect(user1).invest(20);
 
-    const now = await presaleERC20.getTimestamp();
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - now.toNumber();
+    const blockNumber = await ethers.provider.getBlockNumber();
+    const block = await ethers.provider.getBlock(blockNumber);
+
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -296,14 +306,16 @@ describe("PresaleERC20", function () {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
 
     await presaleERC20.connect(owner);
-    await presaleERC20.setRange(10, 10000);
+    await presaleERC20.setPayRange(10, 10000);
     await presaleERC20.setVestingParameter(vestingPeriod, cliff);
     await presaleERC20.setPrice(100000000);
 
     await presaleERC20.connect(user1).invest(20);
 
-    const now = await presaleERC20.getTimestamp();
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - now.toNumber();
+    const blockNumber = await ethers.provider.getBlockNumber();
+    const block = await ethers.provider.getBlock(blockNumber);
+
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -322,5 +334,5 @@ describe("PresaleERC20", function () {
     await presaleERC20.deposit(3000);
     await expect((await buyToken.balanceOf(owner.address)).toNumber()).to.equal(7000);
     await expect((await buyToken.balanceOf(presaleERC20.address)).toNumber()).to.equal(43750003000);
-  })
+  });
 });

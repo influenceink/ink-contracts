@@ -10,7 +10,7 @@ contract PresaleETH is Ownable {
 	using SafeMath for uint256;
 
 	// the maximum amount of tokens to be sold
-	uint256 private constant MAXGOAL = 437500000000;
+	uint256 private constant MAXGOAL = 437500000000 * 10**18;
 
 	// duration of vesting
 	uint256 public vestingPeriod = 48 * 30 days;
@@ -38,7 +38,7 @@ contract PresaleETH is Ownable {
 	// cliff duration
 	uint256 public cliff;
 
-	// token price
+	// token price (1 ETH = 100INK)
 	uint256 public price = 100;
 
 	// the address of INK token contract
@@ -48,8 +48,8 @@ contract PresaleETH is Ownable {
 	bool public presaleClosed = false;
 
 	// min & max amount of ETH per investor
-	uint256 public minAmount;
-	uint256 public maxAmount;
+	uint256 public minPayAmount;
+	uint256 public maxPayAmount;
 
 	// notifying transfers and the success of the crowdsale
 	event GoalReached(address beneficiary, uint256 amountRaisedINK);
@@ -90,31 +90,11 @@ contract PresaleETH is Ownable {
 		if (msg.sender != owner()) invest();
 	}
 
-	// return invested balance in ETH of addr
-	function checkFundsETH(address addr)
-		external
-		view
-		onlyOwner
-		returns (uint256)
-	{
-		return balanceOfETH[addr];
-	}
-
-	// return balance in INK of addr
-	function checkFundsINK(address addr)
-		external
-		view
-		onlyOwner
-		returns (uint256)
-	{
-		return balanceOfINK[addr];
-	}
-
 	// set investment range
-	function setRange(uint256 _min, uint256 _max) external onlyOwner {
+	function setPayRange(uint256 _min, uint256 _max) external onlyOwner {
 		require(_max > _min && _min > 0, "set invalid range.");
-		minAmount = _min;
-		maxAmount = _max;
+		minPayAmount = _min;
+		maxPayAmount = _max;
 	}
 
 	// set price
@@ -147,19 +127,19 @@ contract PresaleETH is Ownable {
 
 		uint256 predictETHAmount = balanceOfETH[msg.sender].add(amountETH);
 		require(
-			predictETHAmount >= minAmount,
+			predictETHAmount >= minPayAmount,
 			"fund is less than minimum amount."
 		);
 
 		require(
-			predictETHAmount <= maxAmount,
+			predictETHAmount <= maxPayAmount,
 			"fund is more than maximum amount."
 		);
 
 		balanceOfETH[msg.sender] = predictETHAmount;
 		amountRaisedETH = amountRaisedETH.add(amountETH);
 
-		uint256 amountINK = amountETH.mul(price).div(1 ether);
+		uint256 amountINK = amountETH.mul(price);
 		balanceOfINK[msg.sender] = balanceOfINK[msg.sender].add(amountINK);
 		amountRaisedINK = amountRaisedINK.add(amountINK);
 
@@ -189,11 +169,7 @@ contract PresaleETH is Ownable {
 		returns (uint256)
 	{
 		uint256 balance = balanceOfINK[msg.sender];
-		require(balance > 0, "zero amount paid.");
-		require(
-			block.timestamp >= cliff,
-			"claim is not available before cliff."
-		);
+		if (balance == 0 || block.timestamp < cliff) return 0;
 		uint256 end = cliff.add(vestingPeriod);
 		uint256 duration = (block.timestamp >= end)
 			? end.sub(lastClaimed)

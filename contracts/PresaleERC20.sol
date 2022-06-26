@@ -10,7 +10,7 @@ contract PresaleERC20 is Ownable {
 	using SafeMath for uint256;
 
 	// the maximum amount of tokens to be sold
-	uint256 public MAXGOAL = 437500000000;
+	uint256 public MAXGOAL = 437500000000 * 10**18;
 
 	// duration of vesting
 	uint256 public vestingPeriod = 48 * 30 days;
@@ -38,7 +38,7 @@ contract PresaleERC20 is Ownable {
 	// cliff duration
 	uint256 public cliff;
 
-	// token price
+	// token price (1 USDT = 100 INK)
 	uint256 public price = 100;
 
 	// the address of pay token contract
@@ -51,8 +51,8 @@ contract PresaleERC20 is Ownable {
 	bool public presaleClosed = false;
 
 	// min & max amount of pay token per investor
-	uint256 public minAmount;
-	uint256 public maxAmount;
+	uint256 public minPayAmount;
+	uint256 public maxPayAmount;
 
 	// notifying transfers and the success of the crowdsale
 	event GoalReached(address beneficiary, uint256 amountBought);
@@ -91,31 +91,11 @@ contract PresaleERC20 is Ownable {
 		lastClaimed = _deadline;
 	}
 
-	// return balance in pay token of addr
-	function checkFundsPaid(address addr)
-		external
-		view
-		onlyOwner
-		returns (uint256)
-	{
-		return balanceOfPay[addr];
-	}
-
-	// return balance in buy token of addr
-	function checkFundsBuy(address addr)
-		external
-		view
-		onlyOwner
-		returns (uint256)
-	{
-		return balanceOfBuy[addr];
-	}
-
 	// set investment range
-	function setRange(uint256 _min, uint256 _max) external onlyOwner {
+	function setPayRange(uint256 _min, uint256 _max) external onlyOwner {
 		require(_max > _min && _min > 0, "set invalid range.");
-		minAmount = _min;
-		maxAmount = _max;
+		minPayAmount = _min;
+		maxPayAmount = _max;
 	}
 
 	// set price
@@ -148,12 +128,12 @@ contract PresaleERC20 is Ownable {
 		uint256 predictPaidAmount = balanceOfPay[msg.sender].add(amountPay);
 
 		require(
-			predictPaidAmount >= minAmount,
+			predictPaidAmount >= minPayAmount,
 			"fund is less than minimum amount."
 		);
 
 		require(
-			predictPaidAmount <= maxAmount,
+			predictPaidAmount <= maxPayAmount,
 			"fund is more than maximum amount."
 		);
 
@@ -192,11 +172,7 @@ contract PresaleERC20 is Ownable {
 		returns (uint256)
 	{
 		uint256 balance = balanceOfBuy[msg.sender];
-		require(balance > 0, "zero amount paid.");
-		require(
-			block.timestamp >= cliff,
-			"claim is not available before cliff."
-		);
+		if (balance == 0 || block.timestamp < cliff) return 0;
 		uint256 end = cliff.add(vestingPeriod);
 		uint256 duration = (block.timestamp >= end)
 			? end.sub(lastClaimed)
