@@ -10,16 +10,29 @@ contract Vesting is Ownable {
 		uint256 totalAmount;
 		uint256 claimed;
 	}
-	event INKClaimed(address _beneficiary, uint256 amount);
 
-	address private vestingToken;
+	event Claimed(address _beneficiary, uint256 amount);
+	event NewBeneficiaryAdded(
+		address _beneficiary,
+		uint256 _duration,
+		uint256 _totalAmount
+	);
 
-	mapping(address => Beneficiary) public vestingWallets;
+	mapping(address => Beneficiary) public beneficiaries;
 
-	uint256 private _totalAmount;
-	uint256 private _totalReleased;
+	address public vestingToken;
+	uint256 public totalAmount;
+	uint256 public totalClaimed;
 	uint256 public immutable startTime;
-	bool private _paused;
+	bool public paused;
+
+	modifier onlyMembers(address _beneficiary) {
+		require(
+			beneficiaries[_beneficiary].totalAmount != 0,
+			"Vesting: not member"
+		);
+		_;
+	}
 
 	constructor(
 		address _token,
@@ -27,11 +40,11 @@ contract Vesting is Ownable {
 		uint256 _startTime
 	) {
 		vestingToken = _token;
-		_totalAmount = _amount;
+		totalAmount = _amount;
 		startTime = _startTime;
 
-		_totalReleased = 0;
-		_paused = false;
+		totalClaimed = 0;
+		paused = false;
 	}
 
 	function addBeneficiary(
@@ -43,49 +56,68 @@ contract Vesting is Ownable {
 			_beneficiary != address(0),
 			"Vesting: Beneficiary can not be address zero."
 		);
-		vestingWallets[_beneficiary] = Beneficiary(_duration, _amount, 0);
+		require(
+			beneficiaries[_beneficiary].totalAmount == 0,
+			"Vesting: already exists"
+		);
+		beneficiaries[_beneficiary] = Beneficiary(_duration, _amount, 0);
+
+		emit NewBeneficiaryAdded(_beneficiary, _duration, _amount);
 	}
 
 	function pause() external onlyOwner {
-		_paused = true;
+		paused = true;
 	}
 
 	function resume() external onlyOwner {
-		_paused = false;
+		paused = false;
 	}
 
-	function claim(address _beneficiary) external {
-		require(!_paused, "Vesting is paused.");
+	function claim(address _beneficiary) external onlyMembers(_beneficiary) {
+		require(!paused, "Vesting is paused.");
 
-		uint256 claimable = vestedAmount(_beneficiary) -
-			vestingWallets[_beneficiary].claimed;
+		uint256 _claimable = claimableAmount(_beneficiary);
 
 		require(
-			_totalAmount >= _totalReleased + claimable,
+			totalAmount >= totalClaimed + _claimable,
 			"The total amount is overspent."
 		);
 
-		_totalReleased += claimable;
-		vestingWallets[_beneficiary].claimed += claimable;
+		totalClaimed += _claimable;
+		beneficiaries[_beneficiary].claimed += _claimable;
 
-		SafeERC20.safeTransfer(IERC20(vestingToken), _beneficiary, claimable);
+		require(_claimable != 0, "Vesting: already claimed all");
 
-		emit INKClaimed(_beneficiary, claimable);
+		SafeERC20.safeTransfer(IERC20(vestingToken), _beneficiary, _claimable);
+
+		emit Claimed(_beneficiary, _claimable);
 	}
 
-	function vestedAmount(address _beneficiary)
+	function unlockedAmount(address _beneficiary)
 		public
 		view
+		onlyMembers(_beneficiary)
 		returns (uint256)
 	{
-		uint256 _duration = vestingWallets[_beneficiary].duration;
-		uint256 _amount = vestingWallets[_beneficiary].totalAmount;
+		uint256 _duration = beneficiaries[_beneficiary].duration;
+		uint256 _amount = beneficiaries[_beneficiary].totalAmount;
 		if (block.timestamp < startTime) {
 			return 0;
 		} else if (block.timestamp > startTime + _duration) {
 			return _amount;
 		} else {
+			if (_duration == 0) return _amount;
 			return (_amount * (block.timestamp - startTime)) / _duration;
 		}
+	}
+
+	function claimableAmount(address _beneficiary)
+		public
+		view
+		onlyMembers(_beneficiary)
+		returns (uint256)
+	{
+		return
+			unlockedAmount(_beneficiary) - beneficiaries[_beneficiary].claimed;
 	}
 }
