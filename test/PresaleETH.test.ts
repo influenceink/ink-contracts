@@ -13,8 +13,8 @@ describe("presaleETH", function () {
   let user2: SignerWithAddress;
   let startTime: number;
   let endTime: number;
-  let cliff: number;
-  let vestingPeriod: number;
+  let vestingCliff: number;
+  let vestingDuration: number;
   beforeEach(async () => {
     [owner, user1, user2] = await ethers.getSigners();
 
@@ -26,10 +26,10 @@ describe("presaleETH", function () {
     startTime = Date.parse('21 Jun 2022 00:12:00 GMT') / 1000;
 
     endTime = startTime + 30 * 24 * 3600;
-    cliff = Date.parse('1 Aug 2022 00:12:00 GMT') / 1000;
-    vestingPeriod = 48 * 30 * 24 * 3600;
+    vestingCliff = Date.parse('1 Aug 2022 00:12:00 GMT') / 1000;
+    vestingDuration = 48 * 30 * 24 * 3600;
 
-    presaleETH = (await PresaleETH.deploy(inkToken.address, startTime, endTime, cliff)) as PresaleETH;
+    presaleETH = (await PresaleETH.deploy(inkToken.address, startTime, endTime, vestingCliff)) as PresaleETH;
     await presaleETH.deployed();
 
     await inkToken.mint(presaleETH.address, ethers.utils.parseEther("43750000000"));
@@ -55,7 +55,7 @@ describe("presaleETH", function () {
     expect(await presaleETH.inkToken()).to.equal(inkToken.address);
     expect(await presaleETH.startTime()).to.equal(startTime);
     expect(await presaleETH.endTime()).to.equal(endTime);
-    expect(await presaleETH.cliff()).to.equal(cliff);
+    expect(await presaleETH.vestingCliff()).to.equal(vestingCliff);
   });
 
   it("test_setPayRange_asUser_thenReverts", async () => {
@@ -92,7 +92,7 @@ describe("presaleETH", function () {
 
   it("test_setVestingParameter_asUser_thenReverts", async () => {
 
-    await expect(presaleETH.connect(user1).setVestingParameter(vestingPeriod, cliff)).to.be.revertedWith("Ownable: caller is not the owner");
+    await expect(presaleETH.connect(user1).setVestingParameter(vestingDuration, vestingCliff)).to.be.revertedWith("Ownable: caller is not the owner");
   });
 
   it("test_setVestingParameter_asOwner_afterPresaleClosed_thenReverts", async () => {
@@ -100,18 +100,18 @@ describe("presaleETH", function () {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
     await ethers.provider.send('evm_increaseTime', [twoMonths]);
     await ethers.provider.send('evm_mine', []);
-    await expect(presaleETH.connect(owner).setVestingParameter(vestingPeriod, cliff)).to.be.revertedWith("vesting parameter can't change");
+    await expect(presaleETH.connect(owner).setVestingParameter(vestingDuration, vestingCliff)).to.be.revertedWith("vesting parameter can't change");
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
   it("test_setVestingParameter_asOwner_givenInvalidCliff_thenReverts", async () => {
-    await expect(presaleETH.connect(owner).setVestingParameter(vestingPeriod, startTime - 1)).to.be.revertedWith("vesting parameter can't change");
+    await expect(presaleETH.connect(owner).setVestingParameter(vestingDuration, startTime - 1)).to.be.revertedWith("vesting parameter can't change");
   });
 
   it("test_setVestingParameter_asOwner_beforePresaleClosed_thenSuccess", async () => {
-    await presaleETH.connect(owner).setVestingParameter(vestingPeriod, cliff);
-    expect(await presaleETH.vestingPeriod()).to.equal(vestingPeriod);
-    expect(await presaleETH.cliff()).to.equal(cliff);
+    await presaleETH.connect(owner).setVestingParameter(vestingDuration, vestingCliff);
+    expect(await presaleETH.vestingDuration()).to.equal(vestingDuration);
+    expect(await presaleETH.vestingCliff()).to.equal(vestingCliff);
   });
 
   it("test_invest_notWhitelisted_thenReverts", async () => {
@@ -131,14 +131,14 @@ describe("presaleETH", function () {
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("100"));
 
-    await expect(presaleETH.invest({ value: ethers.utils.parseEther("3") })).to.be.revertedWith("fund is invalid.");
+    await expect(presaleETH.invest({ value: ethers.utils.parseEther("3") })).to.be.revertedWith("fund is out of range.");
   });
 
   it("test_invest_givenMoreThanMaxPayAmount_thenReverts", async () => {
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("100"));
 
-    await expect(presaleETH.invest({ value: ethers.utils.parseEther("200") })).to.be.revertedWith("fund is invalid.");
+    await expect(presaleETH.invest({ value: ethers.utils.parseEther("200") })).to.be.revertedWith("fund is out of range.");
   });
 
   it("test_invest_givenValidAmount_thenSuccessAndEmitFundsInvestedEvent", async () => {
@@ -184,7 +184,7 @@ describe("presaleETH", function () {
   it("test_getClamiableAmount_beforeCliff_thenReturnZero", async () => {
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("10000"));
-    await presaleETH.setVestingParameter(vestingPeriod, cliff);
+    await presaleETH.setVestingParameter(vestingDuration, vestingCliff);
 
     await presaleETH.connect(user2).invest({ value: ethers.utils.parseEther("30") });
 
@@ -202,14 +202,14 @@ describe("presaleETH", function () {
 
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("10000"));
-    await presaleETH.setVestingParameter(vestingPeriod, cliff);
+    await presaleETH.setVestingParameter(vestingDuration, vestingCliff);
     await presaleETH.setPrice(100000000);
 
     await presaleETH.connect(user1).invest({ value: ethers.utils.parseEther("20") });
 
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + vestingCliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -218,19 +218,35 @@ describe("presaleETH", function () {
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
+  it("test_claim_claimableAmountIsZero_thenReverts", async () => {
+    await presaleETH.connect(owner);
+    await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("10000"));
+    await presaleETH.setVestingParameter(vestingDuration, vestingCliff);
+
+    await presaleETH.connect(user2).invest({ value: ethers.utils.parseEther("30") });
+
+    const snapShot = await ethers.provider.send('evm_snapshot', []);
+    const timeUntilPresaleClosed = endTime - Date.now() / 1000;
+    await ethers.provider.send('evm_increaseTime', [timeUntilPresaleClosed]);
+    await ethers.provider.send('evm_mine', []);
+
+    await expect(presaleETH.connect(user2).claim()).to.be.revertedWith('claimable amount is zero.');
+    await ethers.provider.send('evm_revert', [snapShot]);
+  });
+
   it("test_claim_afterPresaleClosed_thenSuccess", async () => {
     const snapShot = await ethers.provider.send('evm_snapshot', []);
 
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("10000"));
-    await presaleETH.setVestingParameter(vestingPeriod, cliff);
+    await presaleETH.setVestingParameter(vestingDuration, vestingCliff);
     await presaleETH.setPrice(100000000);
 
     await presaleETH.connect(user1).invest({ value: ethers.utils.parseEther("20") });
 
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + vestingCliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -252,12 +268,12 @@ describe("presaleETH", function () {
 
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("10000"));
-    await presaleETH.setVestingParameter(vestingPeriod, cliff);
+    await presaleETH.setVestingParameter(vestingDuration, vestingCliff);
     await presaleETH.setPrice(100000000);
 
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + vestingCliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -271,7 +287,7 @@ describe("presaleETH", function () {
 
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("10000"));
-    await presaleETH.setVestingParameter(vestingPeriod, cliff);
+    await presaleETH.setVestingParameter(vestingDuration, vestingCliff);
     await presaleETH.setPrice(100000000);
 
     await presaleETH.connect(user1).invest({ value: ethers.utils.parseEther("20") });
@@ -279,7 +295,7 @@ describe("presaleETH", function () {
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
 
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + vestingCliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
@@ -300,14 +316,14 @@ describe("presaleETH", function () {
 
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("10000"));
-    await presaleETH.setVestingParameter(vestingPeriod, cliff);
+    await presaleETH.setVestingParameter(vestingDuration, vestingCliff);
     await presaleETH.setPrice(100000000);
 
     await presaleETH.connect(user1).invest({ value: ethers.utils.parseEther("20") });
 
     const blockNumber = await ethers.provider.getBlockNumber();
     const block = await ethers.provider.getBlock(blockNumber);
-    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + cliff - block.timestamp;
+    const twoYearsAfterCliff = 24 * 30 * 24 * 3600 + vestingCliff - block.timestamp;
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 

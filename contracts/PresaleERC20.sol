@@ -14,7 +14,7 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 	uint256 public MAXGOAL = 437500000000 * 10**18;
 
 	// duration of vesting (4 years)
-	uint256 public vestingPeriod = 48 * 30 days;
+	uint256 public vestingDuration = 48 * 30 days;
 
 	// how much has been raised by crowdsale (pay token)
 	uint256 public amountTotalPaid;
@@ -38,8 +38,8 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 	uint256 public startTime;
 	uint256 public endTime;
 
-	// cliff time
-	uint256 public cliff;
+	// vestingCliff time
+	uint256 public vestingCliff;
 
 	// token price (1 USDT = 100 INK)
 	uint256 public price = 100;
@@ -86,7 +86,7 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 		buyToken = _buyToken;
 		startTime = _startTime;
 		endTime = _endTime;
-		cliff = _cliff;
+		vestingCliff = _cliff;
 	}
 
 	// set investment range
@@ -113,8 +113,8 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 				_cliff > block.timestamp,
 			"vesting parameter can't change."
 		);
-		vestingPeriod = _vestingPeriod;
-		cliff = _cliff;
+		vestingDuration = _vestingPeriod;
+		vestingCliff = _cliff;
 	}
 
 	// invest pay token by whitelisted user
@@ -129,7 +129,7 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 		require(
 			predictPaidAmount >= minPayAmount &&
 				predictPaidAmount <= maxPayAmount,
-			"fund is invalid."
+			"fund is out of range."
 		);
 
 		balanceOfPay[msg.sender] = predictPaidAmount;
@@ -152,13 +152,14 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 	// claim available amount of buy token accroding to vesting strategy by whitelisted user
 	function claim() external afterClosed onlyWhitelisted nonReentrant {
 		uint256 claimableAmount = getClaimableAmount(msg.sender);
+		require(claimableAmount > 0, "claimable amount is zero.");
 		buyToken.transfer(msg.sender, claimableAmount);
 		amountClaimed[msg.sender] = amountClaimed[msg.sender].add(
 			claimableAmount
 		);
 
 		amountTotalClaimed.add(claimableAmount);
-		if (block.timestamp >= cliff.add(vestingPeriod))
+		if (block.timestamp >= vestingCliff.add(vestingDuration))
 			balanceOfBuy[msg.sender] = 0;
 	}
 
@@ -173,13 +174,13 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 	function unlockedAmount(address _addr) public view returns (uint256) {
 		uint256 balance = balanceOfBuy[_addr];
 		uint256 currentTime = block.timestamp;
-		if (balance == 0 || currentTime < cliff) return 0;
-		uint256 end = cliff.add(vestingPeriod);
+		if (balance == 0 || currentTime < vestingCliff) return 0;
+		uint256 end = vestingCliff.add(vestingDuration);
 		uint256 duration = (currentTime >= end)
-			? end.sub(cliff)
-			: currentTime.sub(cliff);
+			? vestingDuration
+			: currentTime.sub(vestingCliff);
 
-		return balance.mul(duration).div(vestingPeriod);
+		return balance.mul(duration).div(vestingDuration);
 	}
 
 	// withdraw raised funds by admin

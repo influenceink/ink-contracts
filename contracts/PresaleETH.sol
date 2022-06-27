@@ -14,7 +14,7 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 	uint256 private constant MAXGOAL = 437500000000 * 10**18;
 
 	// duration of vesting (4 years)
-	uint256 public vestingPeriod = 48 * 30 days;
+	uint256 public vestingDuration = 48 * 30 days;
 
 	// how much has been raised by crowdsale (in ETH)
 	uint256 public amountRaisedETH;
@@ -38,8 +38,8 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 	uint256 public startTime;
 	uint256 public endTime;
 
-	// cliff duration
-	uint256 public cliff;
+	// vestingCliff duration
+	uint256 public vestingCliff;
 
 	// token price (1 ETH = 100INK)
 	uint256 public price = 100;
@@ -81,7 +81,7 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 		inkToken = _inkToken;
 		startTime = _startTime;
 		endTime = _endTime;
-		cliff = _cliff;
+		vestingCliff = _cliff;
 	}
 
 	receive() external payable {
@@ -112,8 +112,8 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 				_cliff > block.timestamp,
 			"vesting parameter can't change."
 		);
-		vestingPeriod = _vestingPeriod;
-		cliff = _cliff;
+		vestingDuration = _vestingPeriod;
+		vestingCliff = _cliff;
 	}
 
 	// invest ETH by whitelisted user
@@ -127,7 +127,7 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 		uint256 predictETHAmount = balanceOfETH[msg.sender].add(amountETH);
 		require(
 			predictETHAmount >= minPayAmount && predictETHAmount <= maxPayAmount,
-			"fund is invalid."
+			"fund is out of range."
 		);
 
 		balanceOfETH[msg.sender] = predictETHAmount;
@@ -148,12 +148,13 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 	// claim available amount of ink token accroding to vesting strategy by whitelisted user
 	function claim() external afterClosed onlyWhitelisted nonReentrant {
 		uint256 claimableAmount = getClaimableAmount(msg.sender);
+		require(claimableAmount > 0, "claimable amount is zero.");
 		inkToken.transfer(msg.sender, claimableAmount);
 		amountTotalClaimed.add(claimableAmount);
 		amountClaimed[msg.sender] = amountClaimed[msg.sender].add(
 			claimableAmount
 		);
-		if (block.timestamp >= cliff.add(vestingPeriod))
+		if (block.timestamp >= vestingCliff.add(vestingDuration))
 			balanceOfINK[msg.sender] = 0;
 	}
 
@@ -168,13 +169,13 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 	function unlockedAmount(address _addr) public view returns (uint256) {
 		uint256 balance = balanceOfINK[_addr];
 		uint256 currentTime = block.timestamp;
-		if (balance == 0 || currentTime < cliff) return 0;
-		uint256 end = cliff.add(vestingPeriod);
+		if (balance == 0 || currentTime < vestingCliff) return 0;
+		uint256 end = vestingCliff.add(vestingDuration);
 		uint256 duration = (currentTime >= end)
-			? end.sub(cliff)
-			: currentTime.sub(cliff);
+			? vestingDuration
+			: currentTime.sub(vestingCliff);
 
-		return balance.mul(duration).div(vestingPeriod);
+		return balance.mul(duration).div(vestingDuration);
 	}
 
 	// withdraw raised funds by admin
