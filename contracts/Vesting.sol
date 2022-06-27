@@ -5,9 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Vesting is Ownable {
+	using SafeERC20 for IERC20;
+
 	struct Beneficiary {
 		uint256 duration;
-		uint256 totalAmount;
+		uint256 amount;
 		uint256 claimed;
 	}
 
@@ -20,31 +22,23 @@ contract Vesting is Ownable {
 
 	mapping(address => Beneficiary) public beneficiaries;
 
-	address public vestingToken;
+	address public immutable vestingToken;
 	uint256 public totalAmount;
 	uint256 public totalClaimed;
 	uint256 public immutable startTime;
 	bool public paused;
 
-	modifier onlyMembers(address _beneficiary) {
+	modifier onlyBeneficiaries(address _wallet) {
 		require(
-			beneficiaries[_beneficiary].totalAmount != 0,
-			"Vesting: not member"
+			beneficiaries[_wallet].amount != 0,
+			"Vesting: not beneficiary"
 		);
 		_;
 	}
 
-	constructor(
-		address _token,
-		uint256 _amount,
-		uint256 _startTime
-	) {
+	constructor(address _token, uint256 _startTime) {
 		vestingToken = _token;
-		totalAmount = _amount;
 		startTime = _startTime;
-
-		totalClaimed = 0;
-		paused = false;
 	}
 
 	function addBeneficiary(
@@ -54,13 +48,14 @@ contract Vesting is Ownable {
 	) external onlyOwner {
 		require(
 			_beneficiary != address(0),
-			"Vesting: Beneficiary can not be address zero."
+			"Vesting: beneficiary can not be address zero"
 		);
 		require(
-			beneficiaries[_beneficiary].totalAmount == 0,
+			beneficiaries[_beneficiary].amount == 0,
 			"Vesting: already exists"
 		);
 		beneficiaries[_beneficiary] = Beneficiary(_duration, _amount, 0);
+		totalAmount += _amount;
 
 		emit NewBeneficiaryAdded(_beneficiary, _duration, _amount);
 	}
@@ -73,48 +68,46 @@ contract Vesting is Ownable {
 		paused = false;
 	}
 
-	function claim(address _beneficiary) external onlyMembers(_beneficiary) {
-		require(!paused, "Vesting is paused.");
+	function claim(address _beneficiary)
+		external
+		onlyBeneficiaries(_beneficiary)
+	{
+		require(!paused, "Vesting: paused");
 
-		uint256 _claimable = claimableAmount(_beneficiary);
+		uint256 claimable = claimableAmount(_beneficiary);
 
-		require(
-			totalAmount >= totalClaimed + _claimable,
-			"The total amount is overspent."
-		);
+		require(claimable != 0, "Vesting: already claimed all");
 
-		totalClaimed += _claimable;
-		beneficiaries[_beneficiary].claimed += _claimable;
+		totalClaimed += claimable;
+		beneficiaries[_beneficiary].claimed += claimable;
 
-		require(_claimable != 0, "Vesting: already claimed all");
+		IERC20(vestingToken).safeTransfer(_beneficiary, claimable);
 
-		SafeERC20.safeTransfer(IERC20(vestingToken), _beneficiary, _claimable);
-
-		emit Claimed(_beneficiary, _claimable);
+		emit Claimed(_beneficiary, claimable);
 	}
 
 	function unlockedAmount(address _beneficiary)
 		public
 		view
-		onlyMembers(_beneficiary)
+		onlyBeneficiaries(_beneficiary)
 		returns (uint256)
 	{
-		uint256 _duration = beneficiaries[_beneficiary].duration;
-		uint256 _amount = beneficiaries[_beneficiary].totalAmount;
+		uint256 duration = beneficiaries[_beneficiary].duration;
+		uint256 amount = beneficiaries[_beneficiary].amount;
 		if (block.timestamp < startTime) {
 			return 0;
-		} else if (block.timestamp > startTime + _duration) {
-			return _amount;
+		} else if (block.timestamp > startTime + duration) {
+			return amount;
 		} else {
-			if (_duration == 0) return _amount;
-			return (_amount * (block.timestamp - startTime)) / _duration;
+			if (duration == 0) return amount;
+			return (amount * (block.timestamp - startTime)) / duration;
 		}
 	}
 
 	function claimableAmount(address _beneficiary)
 		public
 		view
-		onlyMembers(_beneficiary)
+		onlyBeneficiaries(_beneficiary)
 		returns (uint256)
 	{
 		return

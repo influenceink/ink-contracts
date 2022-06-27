@@ -1,17 +1,20 @@
 import { expect } from "chai"
 import { MockProvider } from "ethereum-waffle"
 import { ethers } from "hardhat"
-import { Contract, BigNumber } from "ethers"
+import { Contract } from "ethers"
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 
 describe("Vesting", async function () {
 	let erc20: Contract
 	let cliff: number
 	let vesting: Contract
 	let snapShot: any
+	let beneficiary: SignerWithAddress
 
 	beforeEach(async () => {
-		const [contractOwner] = await ethers.getSigners()
+		const [contractOwner, beneficiary_] = await ethers.getSigners()
 		cliff = Math.floor(Date.now() / 1000) + 60
+		beneficiary = beneficiary_
 
 		erc20 = await (
 			await ethers.getContractFactory("BasicToken", contractOwner)
@@ -20,23 +23,22 @@ describe("Vesting", async function () {
 
 		vesting = await (
 			await ethers.getContractFactory("Vesting", contractOwner)
-		).deploy(erc20.address, 500, cliff)
+		).deploy(erc20.address, cliff)
 		await vesting.deployed()
 
 		await erc20.functions.transfer(vesting.address, 500)
 	})
 
-	it("test_initialization", async function () {
+	it("test_setup", async function () {
 		expect(await vesting.startTime()).to.equal(cliff)
 		expect(
 			(await erc20.functions.balanceOf(vesting.address)).toString()
 		).to.equal("500")
+		expect(await vesting.totalAmount()).to.equal(0)
 	})
 
-	describe("test_for_addBeneficiary", () => {
+	describe("test_addBeneficiary", () => {
 		it("test_addBeneficiary_asUser_thenReverts", async function () {
-			const [, beneficiary] = await ethers.getSigners()
-
 			await expect(
 				vesting
 					.connect(beneficiary)
@@ -45,16 +47,12 @@ describe("Vesting", async function () {
 		})
 
 		it("test_addBeneficiary_asOwner_thenSuccess", async function () {
-			const [, beneficiary] = await ethers.getSigners()
-
 			await expect(
 				await vesting.addBeneficiary(beneficiary.address, 60, 500)
 			)
 		})
 
-		it("test_addBeneficiary_asOwner_addOneAdded_thenReverts", async function () {
-			const [, beneficiary] = await ethers.getSigners()
-
+		it("test_addBeneficiary_asOwner_add_alreadyAdded_thenReverts", async function () {
 			await expect(
 				await vesting.addBeneficiary(beneficiary.address, 60, 500)
 			)
@@ -67,18 +65,16 @@ describe("Vesting", async function () {
 	})
 
 	it("test_beneficiaries", async function () {
-		const [, beneficiary] = await ethers.getSigners()
 		await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 		const result = await vesting.beneficiaries(beneficiary.address)
 		await expect(result.duration).to.equal(60)
-		await expect(result.totalAmount).to.equal(500)
+		await expect(result.amount).to.equal(500)
 		await expect(result.claimed).to.equal(0)
 	})
 
-	describe("test_for_unlockedAmount", () => {
-		it("test_unlockedAmount_beforeCliff_returnedZero", async function () {
-			const [, beneficiary] = await ethers.getSigners()
+	describe("test_unlockedAmount", () => {
+		it("test_unlockedAmount_beforeCliff_thenReturns_Zero", async function () {
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			await expect(
@@ -96,8 +92,7 @@ describe("Vesting", async function () {
 			await ethers.provider.send("evm_revert", [snapShot])
 		})
 
-		it("test_unlockedAmount_afterCliff_to_be_greaterThanZero", async function () {
-			const [, beneficiary] = await ethers.getSigners()
+		it("test_unlockedAmount_afterCliff_thenReturns_nonzero", async function () {
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			let snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -111,8 +106,7 @@ describe("Vesting", async function () {
 			await ethers.provider.send("evm_revert", [snapShot])
 		})
 
-		it("test_unlockedAmount_after_theEndOfVesting_to_be_totalAmount", async function () {
-			const [, beneficiary] = await ethers.getSigners()
+		it("test_unlockedAmount_afterFinished_thenReturns_totalAmount", async function () {
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			let snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -129,7 +123,6 @@ describe("Vesting", async function () {
 
 	describe("test_claim", () => {
 		it("test_claim_thenEmit_Claimed", async function () {
-			const [, beneficiary] = await ethers.getSigners()
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			let snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -139,6 +132,9 @@ describe("Vesting", async function () {
 			await expect(await vesting.claim(beneficiary.address))
 				.to.emit(vesting, "Claimed")
 				.withArgs(beneficiary.address, 258)
+			await expect(await erc20.balanceOf(beneficiary.address)).to.equal(
+				258
+			)
 
 			await ethers.provider.send("evm_revert", [snapShot])
 			snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -153,7 +149,6 @@ describe("Vesting", async function () {
 		})
 
 		it("test_claim_afterClaimedAll_claimAgain_thenReverts", async function () {
-			const [, beneficiary] = await ethers.getSigners()
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			let snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -172,16 +167,14 @@ describe("Vesting", async function () {
 		})
 	})
 
-	describe("test_for_pause", () => {
+	describe("test_pause", () => {
 		it("test_pause_asUser_thenReverts", async function () {
-			const [, beneficiary] = await ethers.getSigners()
 			await expect(
 				vesting.connect(beneficiary).pause()
 			).to.be.revertedWith("Ownable: caller is not the owner")
 		})
 
-		it("test_pause_asOwner_claim_thenReverts", async function () {
-			const [, beneficiary] = await ethers.getSigners()
+		it("test_pause_asOwner_callClaim_thenReverts", async function () {
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -189,16 +182,16 @@ describe("Vesting", async function () {
 			await ethers.provider.send("evm_mine", [])
 
 			await vesting.pause()
+			await expect(await vesting.paused()).to.equal(true)
 
 			await expect(vesting.claim(beneficiary.address)).to.be.revertedWith(
-				"Vesting is paused."
+				"Vesting: paused"
 			)
 
 			await ethers.provider.send("evm_revert", [snapShot])
 		})
 
 		it("test_resume_asOwner_thenClaimed", async function () {
-			const [, beneficiary] = await ethers.getSigners()
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -206,12 +199,14 @@ describe("Vesting", async function () {
 			await ethers.provider.send("evm_mine", [])
 
 			await vesting.pause()
+			await expect(await vesting.paused()).to.equal(true)
 
 			await expect(vesting.claim(beneficiary.address)).to.be.revertedWith(
-				"Vesting is paused."
+				"Vesting: paused"
 			)
 
 			await vesting.resume()
+			await expect(await vesting.paused()).to.equal(false)
 
 			await expect(await vesting.claim(beneficiary.address)).to.emit(
 				vesting,
@@ -222,18 +217,16 @@ describe("Vesting", async function () {
 		})
 	})
 
-	describe("test_for_claimable", () => {
-		it("test_claimableAmount_beforeStart_return_zero", async function () {
-			const [, beneficiary] = await ethers.getSigners()
-			await vesting.addBeneficiary(beneficiary.address, 60, 500)
+	describe("test_claimable", () => {
+		it("test_claimableAmount_beforeStart_thenReturns_zero", async function () {
+			vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			await expect(
 				await vesting.claimableAmount(beneficiary.address)
 			).to.equal(0)
 		})
 
-		it("test_claimable_afterStart_return_nonzero", async function () {
-			const [, beneficiary] = await ethers.getSigners()
+		it("test_claimable_afterStart_thenReturns_nonzero", async function () {
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -247,8 +240,7 @@ describe("Vesting", async function () {
 			await ethers.provider.send("evm_revert", [snapShot])
 		})
 
-		it("test_claimable_after_justClaim_return_zero", async function () {
-			const [, beneficiary] = await ethers.getSigners()
+		it("test_claimable_after_justClaimed_thenReturns_zero", async function () {
 			await vesting.addBeneficiary(beneficiary.address, 60, 500)
 
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
@@ -256,7 +248,6 @@ describe("Vesting", async function () {
 			await ethers.provider.send("evm_mine", [])
 
 			await vesting.claim(beneficiary.address)
-
 			await expect(
 				Number(await vesting.claimableAmount(beneficiary.address))
 			).to.equal(0)
@@ -265,16 +256,16 @@ describe("Vesting", async function () {
 		})
 	})
 
-	it("test_for_onlyMembers", async function () {
+	it("test_onlyBeneficiaries_givenNotBeneficiary_thenReverts", async function () {
 		const [, , other] = await ethers.getSigners()
 		await expect(vesting.claim(other.address)).to.be.revertedWith(
-			"Vesting: not member"
+			"Vesting: not beneficiary"
 		)
 		await expect(vesting.unlockedAmount(other.address)).to.be.revertedWith(
-			"Vesting: not member"
+			"Vesting: not beneficiary"
 		)
 		await expect(
 			vesting.claimableAmount(other.address)
-		).to.be.revertedWith("Vesting: not member")
+		).to.be.revertedWith("Vesting: not beneficiary")
 	})
 })
