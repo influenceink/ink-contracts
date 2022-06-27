@@ -26,7 +26,10 @@ describe("presaleETH", function () {
     startTime = Date.parse('21 Jun 2022 00:12:00 GMT') / 1000;
 
     endTime = startTime + 30 * 24 * 3600;
-    presaleETH = (await PresaleETH.deploy(inkToken.address, startTime, endTime)) as PresaleETH;
+    cliff = Date.parse('1 Aug 2022 00:12:00 GMT') / 1000;
+    vestingPeriod = 48 * 30 * 24 * 3600;
+
+    presaleETH = (await PresaleETH.deploy(inkToken.address, startTime, endTime, cliff)) as PresaleETH;
     await presaleETH.deployed();
 
     await inkToken.mint(presaleETH.address, ethers.utils.parseEther("43750000000"));
@@ -37,34 +40,29 @@ describe("presaleETH", function () {
 
 
     await inkToken.connect(owner).approve(presaleETH.address, ethers.utils.parseEther("10000"));
-
-    cliff = Date.parse('1 Aug 2022 00:12:00 GMT') / 1000;
-    vestingPeriod = 48 * 30 * 24 * 3600;
-
-
   });
-  it("test_initialization", async function () {
+
+  it("test_setup", async function () {
     expect(await inkToken.balanceOf(presaleETH.address)).to.equal(ethers.utils.parseEther("43750000000"));
 
     const privKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
     let wallet = await new ethers.Wallet(privKey, ethers.provider);
     const tx = await wallet.sendTransaction({ to: presaleETH.address, value: ethers.utils.parseEther("2000") })
     const expectBalance = await ethers.provider.getBalance(owner.address);
-    assert.approximately(expectBalance.div(ethers.utils.parseEther("0.001")).toNumber(), 8000000, 10)
+    assert.approximately(expectBalance.div(ethers.utils.parseEther("0.001")).toNumber(), 8000000, 1000)
     //expect(await ethers.provider.getBalance(owner.address)).to.equal(ethers.utils.parseEther("8000"));
     expect(await ethers.provider.getBalance(presaleETH.address)).to.equal(ethers.utils.parseEther("2000"));
     expect(await presaleETH.inkToken()).to.equal(inkToken.address);
-    expect(await presaleETH.start()).to.equal(startTime);
-    expect(await presaleETH.deadline()).to.equal(endTime);
-    expect(await presaleETH.cliff()).to.equal(endTime);
-    expect(await presaleETH.lastClaimed()).to.equal(endTime);
+    expect(await presaleETH.startTime()).to.equal(startTime);
+    expect(await presaleETH.endTime()).to.equal(endTime);
+    expect(await presaleETH.cliff()).to.equal(cliff);
   });
 
-  it("test_setPayRange_asUser_thenReverted", async () => {
+  it("test_setPayRange_asUser_thenReverts", async () => {
     await expect(presaleETH.connect(user1).setPayRange(10, 100)).to.be.revertedWith("Ownable: caller is not the owner");
   });
 
-  it("test_setPayRange_asOwner_givenInValidRange_thenReverted", async () => {
+  it("test_setPayRange_asOwner_givenInValidRange_thenReverts", async () => {
     await expect(presaleETH.connect(owner).setPayRange(100, 10)).to.be.revertedWith("set invalid range.");
 
     await expect(presaleETH.connect(owner).setPayRange(0, 100)).to.be.revertedWith("set invalid range.");
@@ -78,11 +76,11 @@ describe("presaleETH", function () {
     expect(await presaleETH.maxPayAmount()).to.equal(100);
   });
 
-  it("test_setPrice_asUser_thenReverted", async () => {
+  it("test_setPrice_asUser_thenReverts", async () => {
     await expect(presaleETH.connect(user1).setPrice(10)).to.be.revertedWith("Ownable: caller is not the owner");
   });
 
-  it("test_setPrice_asOwner_givenZeroPrice_thenReverted", async () => {
+  it("test_setPrice_asOwner_givenZeroPrice_thenReverts", async () => {
     await expect(presaleETH.connect(owner).setPrice(0)).to.be.revertedWith("price is zero.");
   });
 
@@ -92,12 +90,12 @@ describe("presaleETH", function () {
     expect(await presaleETH.price()).to.equal(10);
   });
 
-  it("test_setVestingParameter_asUser_thenReverted", async () => {
+  it("test_setVestingParameter_asUser_thenReverts", async () => {
 
     await expect(presaleETH.connect(user1).setVestingParameter(vestingPeriod, cliff)).to.be.revertedWith("Ownable: caller is not the owner");
   });
 
-  it("test_setVestingParameter_asOwner_afterPresaleClosed_thenReverted", async () => {
+  it("test_setVestingParameter_asOwner_afterPresaleClosed_thenReverts", async () => {
     const twoMonths = 30 * 24 * 3600;
     const snapShot = await ethers.provider.send('evm_snapshot', []);
     await ethers.provider.send('evm_increaseTime', [twoMonths]);
@@ -106,18 +104,21 @@ describe("presaleETH", function () {
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
+  it("test_setVestingParameter_asOwner_givenInvalidCliff_thenReverts", async () => {
+    await expect(presaleETH.connect(owner).setVestingParameter(vestingPeriod, startTime - 1)).to.be.revertedWith("vesting parameter can't change");
+  });
+
   it("test_setVestingParameter_asOwner_beforePresaleClosed_thenSuccess", async () => {
     await presaleETH.connect(owner).setVestingParameter(vestingPeriod, cliff);
     expect(await presaleETH.vestingPeriod()).to.equal(vestingPeriod);
     expect(await presaleETH.cliff()).to.equal(cliff);
-    expect(await presaleETH.lastClaimed()).to.equal(cliff);
   });
 
-  it("test_invest_notWhitelisted_thenReverted", async () => {
+  it("test_invest_notWhitelisted_thenReverts", async () => {
 
   });
 
-  it("test_invest_afterPresaleClosed_thenReverted", async () => {
+  it("test_invest_afterPresaleClosed_thenReverts", async () => {
     const twoMonths = 30 * 24 * 3600;
     const snapShot = await ethers.provider.send('evm_snapshot', []);
     await ethers.provider.send('evm_increaseTime', [twoMonths]);
@@ -126,21 +127,21 @@ describe("presaleETH", function () {
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
-  it("test_invest_givenLessThanMinPayAmount_thenReverted", async () => {
+  it("test_invest_givenLessThanMinPayAmount_thenReverts", async () => {
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("100"));
 
-    await expect(presaleETH.invest({ value: ethers.utils.parseEther("3") })).to.be.revertedWith("fund is less than minimum amount.");
+    await expect(presaleETH.invest({ value: ethers.utils.parseEther("3") })).to.be.revertedWith("fund is invalid.");
   });
 
-  it("test_invest_givenMoreThanMaxPayAmount_thenReverted", async () => {
+  it("test_invest_givenMoreThanMaxPayAmount_thenReverts", async () => {
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("100"));
 
-    await expect(presaleETH.invest({ value: ethers.utils.parseEther("200") })).to.be.revertedWith("fund is more than maximum amount.");
+    await expect(presaleETH.invest({ value: ethers.utils.parseEther("200") })).to.be.revertedWith("fund is invalid.");
   });
 
-  it("test_invest_givenValidAmount_thenSuccessAndEmitFundsTransferEvent", async () => {
+  it("test_invest_givenValidAmount_thenSuccessAndEmitFundsInvestedEvent", async () => {
     await presaleETH.connect(owner);
     await presaleETH.setPayRange(ethers.utils.parseEther("10"), ethers.utils.parseEther("100"));
 
@@ -151,7 +152,7 @@ describe("presaleETH", function () {
     await expect(await presaleETH.connect(owner).amountRaisedETH()).to.equal(ethers.utils.parseEther("20"));
     await expect(await presaleETH.balanceOfINK(user1.address)).to.equal(ethers.utils.parseEther("2000000000"));
     await expect(await presaleETH.connect(owner).amountRaisedINK()).to.equal(ethers.utils.parseEther("2000000000"));
-    await expect(tx).to.emit(presaleETH, 'FundsTransfer').withArgs(user1.address, ethers.utils.parseEther("20"), true, ethers.utils.parseEther("20"));
+    await expect(tx).to.emit(presaleETH, 'FundsInvested').withArgs(user1.address, ethers.utils.parseEther("20"));
   });
 
   it("test_invest_reachGoal_thenSuccessAndEmitGoalReachedEvent", async () => {
@@ -165,18 +166,9 @@ describe("presaleETH", function () {
     await expect(await presaleETH.connect(owner).amountRaisedETH()).to.equal(ethers.utils.parseEther("4376"));
     await expect(await presaleETH.balanceOfINK(user1.address)).to.equal(ethers.utils.parseEther("437600000000"));
     await expect(await presaleETH.connect(owner).amountRaisedINK()).to.equal(ethers.utils.parseEther("437600000000"));
-    await expect(tx).to.emit(presaleETH, 'FundsTransfer').withArgs(user1.address, ethers.utils.parseEther("4376"), true, ethers.utils.parseEther("4376"));
+    await expect(tx).to.emit(presaleETH, 'FundsInvested').withArgs(user1.address, ethers.utils.parseEther("4376"));
 
-    await expect(tx).to.emit(presaleETH, 'GoalReached').withArgs(user1.address, ethers.utils.parseEther("437600000000"));
-  });
-
-  it("test_getClamiableAmount_beforePresaleClosed_thenReverted", async () => {
-    await expect(await presaleETH.presaleClosed()).to.be.false;
-    const blockNumber = await ethers.provider.getBlockNumber();
-    const block = await ethers.provider.getBlock(blockNumber);
-    const deadline = await presaleETH.deadline();
-    await expect(deadline.toNumber()).to.be.gt(block.timestamp);
-    await expect(presaleETH.connect(user2).getClaimableAmount()).to.be.revertedWith("presale is not closed.");
+    await expect(tx).to.emit(presaleETH, 'GoalReached').withArgs(ethers.utils.parseEther("437600000000"));
   });
 
   it("test_getClamiableAmount_zeroAmountPaid_thenReturnZero", async () => {
@@ -185,7 +177,7 @@ describe("presaleETH", function () {
     await ethers.provider.send('evm_increaseTime', [timeUntilPresaleClosed]);
     await ethers.provider.send('evm_mine', []);
 
-    expect(await presaleETH.connect(user2).getClaimableAmount()).to.equal(0);
+    expect(await presaleETH.getClaimableAmount(user2.address)).to.equal(0);
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
@@ -201,7 +193,7 @@ describe("presaleETH", function () {
     await ethers.provider.send('evm_increaseTime', [timeUntilPresaleClosed]);
     await ethers.provider.send('evm_mine', []);
 
-    expect(await presaleETH.connect(user2).getClaimableAmount()).to.equal(0);
+    expect(await presaleETH.getClaimableAmount(user2.address)).to.equal(0);
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
@@ -221,7 +213,7 @@ describe("presaleETH", function () {
     await ethers.provider.send('evm_increaseTime', [twoYearsAfterCliff]);
     await ethers.provider.send('evm_mine', []);
 
-    const claimable = await presaleETH.connect(user1).getClaimableAmount();
+    const claimable = await presaleETH.getClaimableAmount(user1.address);
     expect(claimable).to.equal(ethers.utils.parseEther("1000000000"));
     await ethers.provider.send('evm_revert', [snapShot]);
   });
@@ -326,7 +318,7 @@ describe("presaleETH", function () {
     await ethers.provider.send('evm_revert', [snapShot]);
   });
 
-  it("test_deposit_asOwner_givenZeroAmount_thenReverted", async () => {
+  it("test_deposit_asOwner_givenZeroAmount_thenReverts", async () => {
     await expect(presaleETH.deposit(0)).to.be.revertedWith('deposit amount is zero.');
   });
 

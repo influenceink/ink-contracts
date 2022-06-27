@@ -5,14 +5,15 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract PresaleETH is Ownable {
+contract PresaleETH is Ownable, ReentrancyGuard {
 	using SafeMath for uint256;
 
 	// the maximum amount of tokens to be sold
 	uint256 private constant MAXGOAL = 437500000000 * 10**18;
 
-	// duration of vesting
+	// duration of vesting (4 years)
 	uint256 public vestingPeriod = 48 * 30 days;
 
 	// how much has been raised by crowdsale (in ETH)
@@ -30,10 +31,12 @@ contract PresaleETH is Ownable {
 	// the balance of investor's INK
 	mapping(address => uint256) public balanceOfINK;
 
-	// start & end date of the crowdsale
-	uint256 public start;
-	uint256 public deadline;
-	uint256 public lastClaimed;
+	// the claimed amount of investor's INK
+	mapping(address => uint256) public amountClaimed;
+
+	// startTime & end date of the crowdsale
+	uint256 public startTime;
+	uint256 public endTime;
 
 	// cliff duration
 	uint256 public cliff;
@@ -52,17 +55,12 @@ contract PresaleETH is Ownable {
 	uint256 public maxPayAmount;
 
 	// notifying transfers and the success of the crowdsale
-	event GoalReached(address beneficiary, uint256 amountRaisedINK);
-	event FundsTransfer(
-		address backer,
-		uint256 amountETH,
-		bool isContribution,
-		uint256 amountRaisedETH
-	);
+	event GoalReached(uint256 amountRaisedINK);
+	event FundsInvested(address backer, uint256 amountETH);
 
 	modifier afterClosed() {
 		require(
-			presaleClosed == true || block.timestamp >= deadline,
+			presaleClosed == true || block.timestamp >= endTime,
 			"presale is not closed."
 		);
 		_;
@@ -73,17 +71,17 @@ contract PresaleETH is Ownable {
 		_;
 	}
 
-	// initialization, set the token address, start & deadline
+	// initialization, set the token address, startTime & endTime
 	constructor(
 		IERC20 _inkToken,
-		uint256 _start,
-		uint256 _deadline
+		uint256 _startTime,
+		uint256 _endTime,
+		uint256 _cliff
 	) {
 		inkToken = _inkToken;
-		start = _start;
-		deadline = _deadline;
-		cliff = _deadline;
-		lastClaimed = _deadline;
+		startTime = _startTime;
+		endTime = _endTime;
+		cliff = _cliff;
 	}
 
 	receive() external payable {
@@ -109,31 +107,27 @@ contract PresaleETH is Ownable {
 		onlyOwner
 	{
 		require(
-			presaleClosed == false && block.timestamp < deadline,
+			presaleClosed == false &&
+				block.timestamp < endTime &&
+				_cliff > block.timestamp,
 			"vesting parameter can't change."
 		);
 		vestingPeriod = _vestingPeriod;
 		cliff = _cliff;
-		lastClaimed = _cliff;
 	}
 
 	// invest ETH by whitelisted user
 	function invest() public payable {
 		uint256 amountETH = msg.value;
 		require(
-			presaleClosed == false && block.timestamp < deadline,
+			presaleClosed == false && block.timestamp < endTime,
 			"presale is closed."
 		);
 
 		uint256 predictETHAmount = balanceOfETH[msg.sender].add(amountETH);
 		require(
-			predictETHAmount >= minPayAmount,
-			"fund is less than minimum amount."
-		);
-
-		require(
-			predictETHAmount <= maxPayAmount,
-			"fund is more than maximum amount."
+			predictETHAmount >= minPayAmount && predictETHAmount <= maxPayAmount,
+			"fund is invalid."
 		);
 
 		balanceOfETH[msg.sender] = predictETHAmount;
@@ -145,35 +139,40 @@ contract PresaleETH is Ownable {
 
 		if (amountRaisedINK >= MAXGOAL) {
 			presaleClosed = true;
-			emit GoalReached(msg.sender, amountRaisedINK);
+			emit GoalReached(amountRaisedINK);
 		}
 
-		emit FundsTransfer(msg.sender, amountETH, true, amountRaisedETH);
+		emit FundsInvested(msg.sender, amountETH);
 	}
 
 	// claim available amount of ink token accroding to vesting strategy by whitelisted user
-	function claim() external afterClosed onlyWhitelisted {
-		uint256 claimableAmount = getClaimableAmount();
+	function claim() external afterClosed onlyWhitelisted nonReentrant {
+		uint256 claimableAmount = getClaimableAmount(msg.sender);
 		inkToken.transfer(msg.sender, claimableAmount);
 		amountTotalClaimed.add(claimableAmount);
-		lastClaimed = block.timestamp;
+		amountClaimed[msg.sender] = amountClaimed[msg.sender].add(
+			claimableAmount
+		);
 		if (block.timestamp >= cliff.add(vestingPeriod))
 			balanceOfINK[msg.sender] = 0;
 	}
 
-	function getClaimableAmount()
+	function getClaimableAmount(address _addr)
 		public
 		view
-		afterClosed
-		onlyWhitelisted
 		returns (uint256)
 	{
-		uint256 balance = balanceOfINK[msg.sender];
-		if (balance == 0 || block.timestamp < cliff) return 0;
+		return unlockedAmount(_addr) - amountClaimed[_addr];
+	}
+
+	function unlockedAmount(address _addr) public view returns (uint256) {
+		uint256 balance = balanceOfINK[_addr];
+		uint256 currentTime = block.timestamp;
+		if (balance == 0 || currentTime < cliff) return 0;
 		uint256 end = cliff.add(vestingPeriod);
-		uint256 duration = (block.timestamp >= end)
-			? end.sub(lastClaimed)
-			: block.timestamp.sub(lastClaimed);
+		uint256 duration = (currentTime >= end)
+			? end.sub(cliff)
+			: currentTime.sub(cliff);
 
 		return balance.mul(duration).div(vestingPeriod);
 	}

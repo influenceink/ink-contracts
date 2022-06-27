@@ -5,14 +5,15 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract PresaleERC20 is Ownable {
+contract PresaleERC20 is Ownable, ReentrancyGuard {
 	using SafeMath for uint256;
 
 	// the maximum amount of tokens to be sold
 	uint256 public MAXGOAL = 437500000000 * 10**18;
 
-	// duration of vesting
+	// duration of vesting (4 years)
 	uint256 public vestingPeriod = 48 * 30 days;
 
 	// how much has been raised by crowdsale (pay token)
@@ -30,12 +31,14 @@ contract PresaleERC20 is Ownable {
 	// the balance of investor's buy token
 	mapping(address => uint256) public balanceOfBuy;
 
-	// start & deadline date of the crowdsale
-	uint256 public start;
-	uint256 public deadline;
-	uint256 public lastClaimed;
+	// the claimed amount of investor's INK
+	mapping(address => uint256) public amountClaimed;
 
-	// cliff duration
+	// startTime & endTime date of the crowdsale
+	uint256 public startTime;
+	uint256 public endTime;
+
+	// cliff time
 	uint256 public cliff;
 
 	// token price (1 USDT = 100 INK)
@@ -55,17 +58,12 @@ contract PresaleERC20 is Ownable {
 	uint256 public maxPayAmount;
 
 	// notifying transfers and the success of the crowdsale
-	event GoalReached(address beneficiary, uint256 amountBought);
-	event FundsTransfer(
-		address backer,
-		uint256 amount,
-		bool isContribution,
-		uint256 amountPaid
-	);
+	event GoalReached(uint256 amountBought);
+	event FundsInvested(address addr, uint256 amount);
 
 	modifier afterClosed() {
 		require(
-			presaleClosed == true || block.timestamp >= deadline,
+			presaleClosed == true || block.timestamp >= endTime,
 			"presale is not closed."
 		);
 		_;
@@ -76,19 +74,19 @@ contract PresaleERC20 is Ownable {
 		_;
 	}
 
-	// initialization, set the token address, start & deadline
+	// initialization, set the token address, startTime & endTime
 	constructor(
 		IERC20 _payToken,
 		IERC20 _buyToken,
-		uint256 _start,
-		uint256 _deadline
+		uint256 _startTime,
+		uint256 _endTime,
+		uint256 _cliff
 	) {
 		payToken = _payToken;
 		buyToken = _buyToken;
-		start = _start;
-		deadline = _deadline;
-		cliff = _deadline;
-		lastClaimed = _deadline;
+		startTime = _startTime;
+		endTime = _endTime;
+		cliff = _cliff;
 	}
 
 	// set investment range
@@ -110,31 +108,28 @@ contract PresaleERC20 is Ownable {
 		onlyOwner
 	{
 		require(
-			presaleClosed == false && block.timestamp < deadline,
+			presaleClosed == false &&
+				block.timestamp < endTime &&
+				_cliff > block.timestamp,
 			"vesting parameter can't change."
 		);
 		vestingPeriod = _vestingPeriod;
 		cliff = _cliff;
-		lastClaimed = _cliff;
 	}
 
 	// invest pay token by whitelisted user
 	function invest(uint256 amountPay) external onlyWhitelisted {
 		require(
-			presaleClosed == false && block.timestamp < deadline,
+			presaleClosed == false && block.timestamp < endTime,
 			"presale is closed."
 		);
 
 		uint256 predictPaidAmount = balanceOfPay[msg.sender].add(amountPay);
 
 		require(
-			predictPaidAmount >= minPayAmount,
-			"fund is less than minimum amount."
-		);
-
-		require(
-			predictPaidAmount <= maxPayAmount,
-			"fund is more than maximum amount."
+			predictPaidAmount >= minPayAmount &&
+				predictPaidAmount <= maxPayAmount,
+			"fund is invalid."
 		);
 
 		balanceOfPay[msg.sender] = predictPaidAmount;
@@ -148,35 +143,41 @@ contract PresaleERC20 is Ownable {
 
 		if (amountTotalBought >= MAXGOAL) {
 			presaleClosed = true;
-			emit GoalReached(msg.sender, amountTotalBought);
+			emit GoalReached(amountTotalBought);
 		}
 
-		emit FundsTransfer(msg.sender, amountPay, true, amountTotalPaid);
+		emit FundsInvested(msg.sender, amountPay);
 	}
 
 	// claim available amount of buy token accroding to vesting strategy by whitelisted user
-	function claim() external afterClosed onlyWhitelisted {
-		uint256 claimableAmount = getClaimableAmount();
+	function claim() external afterClosed onlyWhitelisted nonReentrant {
+		uint256 claimableAmount = getClaimableAmount(msg.sender);
 		buyToken.transfer(msg.sender, claimableAmount);
+		amountClaimed[msg.sender] = amountClaimed[msg.sender].add(
+			claimableAmount
+		);
+
 		amountTotalClaimed.add(claimableAmount);
-		lastClaimed = block.timestamp;
 		if (block.timestamp >= cliff.add(vestingPeriod))
 			balanceOfBuy[msg.sender] = 0;
 	}
 
-	function getClaimableAmount()
+	function getClaimableAmount(address _addr)
 		public
 		view
-		afterClosed
-		onlyWhitelisted
 		returns (uint256)
 	{
-		uint256 balance = balanceOfBuy[msg.sender];
-		if (balance == 0 || block.timestamp < cliff) return 0;
+		return unlockedAmount(_addr) - amountClaimed[_addr];
+	}
+
+	function unlockedAmount(address _addr) public view returns (uint256) {
+		uint256 balance = balanceOfBuy[_addr];
+		uint256 currentTime = block.timestamp;
+		if (balance == 0 || currentTime < cliff) return 0;
 		uint256 end = cliff.add(vestingPeriod);
-		uint256 duration = (block.timestamp >= end)
-			? end.sub(lastClaimed)
-			: block.timestamp.sub(lastClaimed);
+		uint256 duration = (currentTime >= end)
+			? end.sub(cliff)
+			: currentTime.sub(cliff);
 
 		return balance.mul(duration).div(vestingPeriod);
 	}
