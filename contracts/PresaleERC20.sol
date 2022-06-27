@@ -103,7 +103,7 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 	}
 
 	// set vesting parameter by admin
-	function setVestingParameter(uint256 _vestingPeriod, uint256 _cliff)
+	function setVestingParameter(uint256 _vestingDuration, uint256 _cliff)
 		external
 		onlyOwner
 	{
@@ -113,7 +113,7 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 				_cliff > block.timestamp,
 			"vesting parameter can't change."
 		);
-		vestingDuration = _vestingPeriod;
+		vestingDuration = _vestingDuration;
 		vestingCliff = _cliff;
 	}
 
