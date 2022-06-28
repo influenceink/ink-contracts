@@ -1,5 +1,4 @@
 import { expect } from "chai"
-import { MockProvider } from "ethereum-waffle"
 import { ethers } from "hardhat"
 import { Contract } from "ethers"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
@@ -8,17 +7,21 @@ describe("Vesting", async function () {
 	let erc20: Contract
 	let cliff: number
 	let vesting: Contract
-	let snapShot: any
 	let beneficiary: SignerWithAddress
 
 	beforeEach(async () => {
 		const [contractOwner, beneficiary_] = await ethers.getSigners()
-		cliff = Math.floor(Date.now() / 1000) + 60
+		cliff =
+			(
+				await ethers.provider.getBlock(
+					await ethers.provider.getBlockNumber()
+				)
+			).timestamp + 60
 		beneficiary = beneficiary_
 
 		erc20 = await (
-			await ethers.getContractFactory("BasicToken", contractOwner)
-		).deploy(1000)
+			await ethers.getContractFactory("INK", contractOwner)
+		).deploy()
 		await erc20.deployed()
 
 		vesting = await (
