@@ -3,12 +3,12 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract PresaleETH is Ownable, ReentrancyGuard {
-	using SafeMath for uint256;
+	using SafeERC20 for IERC20;
 
 	// the maximum amount of tokens to be sold
 	uint256 private constant MAXGOAL = 437500000000 * 10**18;
@@ -124,18 +124,18 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 			"presale is closed."
 		);
 
-		uint256 predictETHAmount = balanceOfETH[msg.sender].add(amountETH);
+		uint256 predictETHAmount = balanceOfETH[msg.sender] + amountETH;
 		require(
 			predictETHAmount >= minPayAmount && predictETHAmount <= maxPayAmount,
 			"fund is out of range."
 		);
 
 		balanceOfETH[msg.sender] = predictETHAmount;
-		amountRaisedETH = amountRaisedETH.add(amountETH);
+		amountRaisedETH = amountRaisedETH + amountETH;
 
-		uint256 amountINK = amountETH.mul(price);
-		balanceOfINK[msg.sender] = balanceOfINK[msg.sender].add(amountINK);
-		amountRaisedINK = amountRaisedINK.add(amountINK);
+		uint256 amountINK = amountETH * price;
+		balanceOfINK[msg.sender] = balanceOfINK[msg.sender] + amountINK;
+		amountRaisedINK = amountRaisedINK + amountINK;
 
 		if (amountRaisedINK >= MAXGOAL) {
 			presaleClosed = true;
@@ -149,12 +149,12 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 	function claim() external afterClosed onlyWhitelisted nonReentrant {
 		uint256 claimableAmount = getClaimableAmount(msg.sender);
 		require(claimableAmount > 0, "claimable amount is zero.");
-		inkToken.transfer(msg.sender, claimableAmount);
-		amountTotalClaimed.add(claimableAmount);
-		amountClaimed[msg.sender] = amountClaimed[msg.sender].add(
-			claimableAmount
-		);
-		if (block.timestamp >= vestingCliff.add(vestingDuration))
+		inkToken.safeTransfer(msg.sender, claimableAmount);
+		amountTotalClaimed + claimableAmount;
+		amountClaimed[msg.sender] =
+			amountClaimed[msg.sender] +
+			claimableAmount;
+		if (block.timestamp >= vestingCliff + vestingDuration)
 			balanceOfINK[msg.sender] = 0;
 	}
 
@@ -170,12 +170,12 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 		uint256 balance = balanceOfINK[_addr];
 		uint256 currentTime = block.timestamp;
 		if (balance == 0 || currentTime < vestingCliff) return 0;
-		uint256 end = vestingCliff.add(vestingDuration);
+		uint256 end = vestingCliff + vestingDuration;
 		uint256 duration = (currentTime >= end)
 			? vestingDuration
-			: currentTime.sub(vestingCliff);
+			: currentTime - vestingCliff;
 
-		return balance.mul(duration).div(vestingDuration);
+		return (balance * duration) / vestingDuration;
 	}
 
 	// withdraw raised funds by admin
@@ -188,17 +188,16 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 
 	// withdraw remaind ink token by admin
 	function withdrawInkToken() external onlyOwner afterClosed {
-		uint256 amount = inkToken
-			.balanceOf(address(this))
-			.add(amountTotalClaimed)
-			.sub(amountRaisedINK);
+		uint256 amount = inkToken.balanceOf(address(this)) +
+			amountTotalClaimed -
+			amountRaisedINK;
 		require(amount > 0, "withdraw inktoken amount is zero");
-		inkToken.transfer(owner(), amount);
+		inkToken.safeTransfer(owner(), amount);
 	}
 
 	// deposit ink token to this contract by admin
 	function deposit(uint256 amount) external onlyOwner {
 		require(amount > 0, "deposit amount is zero.");
-		inkToken.transferFrom(msg.sender, address(this), amount);
+		inkToken.safeTransferFrom(msg.sender, address(this), amount);
 	}
 }

@@ -3,12 +3,12 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract PresaleERC20 is Ownable, ReentrancyGuard {
-	using SafeMath for uint256;
+	using SafeERC20 for IERC20;
 
 	// the maximum amount of tokens to be sold
 	uint256 public MAXGOAL = 437500000000 * 10**18;
@@ -124,7 +124,7 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 			"presale is closed."
 		);
 
-		uint256 predictPaidAmount = balanceOfPay[msg.sender].add(amountPay);
+		uint256 predictPaidAmount = balanceOfPay[msg.sender] + amountPay;
 
 		require(
 			predictPaidAmount >= minPayAmount &&
@@ -133,13 +133,13 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 		);
 
 		balanceOfPay[msg.sender] = predictPaidAmount;
-		amountTotalPaid = amountTotalPaid.add(amountPay);
+		amountTotalPaid = amountTotalPaid + amountPay;
 
-		payToken.transferFrom(msg.sender, address(this), amountPay);
+		payToken.safeTransferFrom(msg.sender, address(this), amountPay);
 
-		uint256 amountBuy = amountPay.mul(price);
-		balanceOfBuy[msg.sender] = balanceOfBuy[msg.sender].add(amountBuy);
-		amountTotalBought = amountTotalBought.add(amountBuy);
+		uint256 amountBuy = amountPay * price;
+		balanceOfBuy[msg.sender] = balanceOfBuy[msg.sender] + amountBuy;
+		amountTotalBought = amountTotalBought + amountBuy;
 
 		if (amountTotalBought >= MAXGOAL) {
 			presaleClosed = true;
@@ -153,13 +153,13 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 	function claim() external afterClosed onlyWhitelisted nonReentrant {
 		uint256 claimableAmount = getClaimableAmount(msg.sender);
 		require(claimableAmount > 0, "claimable amount is zero.");
-		buyToken.transfer(msg.sender, claimableAmount);
-		amountClaimed[msg.sender] = amountClaimed[msg.sender].add(
-			claimableAmount
-		);
+		buyToken.safeTransfer(msg.sender, claimableAmount);
+		amountClaimed[msg.sender] =
+			amountClaimed[msg.sender] +
+			claimableAmount;
 
-		amountTotalClaimed.add(claimableAmount);
-		if (block.timestamp >= vestingCliff.add(vestingDuration))
+		amountTotalClaimed + claimableAmount;
+		if (block.timestamp >= vestingCliff + vestingDuration)
 			balanceOfBuy[msg.sender] = 0;
 	}
 
@@ -175,33 +175,32 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 		uint256 balance = balanceOfBuy[_addr];
 		uint256 currentTime = block.timestamp;
 		if (balance == 0 || currentTime < vestingCliff) return 0;
-		uint256 end = vestingCliff.add(vestingDuration);
+		uint256 end = vestingCliff + vestingDuration;
 		uint256 duration = (currentTime >= end)
 			? vestingDuration
-			: currentTime.sub(vestingCliff);
+			: currentTime - vestingCliff;
 
-		return balance.mul(duration).div(vestingDuration);
+		return (balance * duration) / vestingDuration;
 	}
 
 	// withdraw raised funds by admin
 	function withdrawPayToken() external onlyOwner afterClosed {
 		require(amountTotalPaid > 0, "withdraw paytoken amount is zero.");
-		payToken.transfer(owner(), amountTotalPaid);
+		payToken.safeTransfer(owner(), amountTotalPaid);
 	}
 
 	// withdraw remained buy token by admin
 	function withdrawBuyToken() external onlyOwner afterClosed {
-		uint256 amount = buyToken
-			.balanceOf(address(this))
-			.add(amountTotalClaimed)
-			.sub(amountTotalBought);
+		uint256 amount = buyToken.balanceOf(address(this)) +
+			amountTotalClaimed -
+			amountTotalBought;
 		require(amount > 0, "withdraw buytoken amount is zero");
-		buyToken.transfer(owner(), amount);
+		buyToken.safeTransfer(owner(), amount);
 	}
 
 	// deposit buy token to this contract by admin
 	function deposit(uint256 amount) external onlyOwner {
 		require(amount > 0, "deposit amount is zero.");
-		buyToken.transferFrom(msg.sender, address(this), amount);
+		buyToken.safeTransferFrom(msg.sender, address(this), amount);
 	}
 }
