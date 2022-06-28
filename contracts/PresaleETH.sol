@@ -131,11 +131,11 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 		);
 
 		balanceOfETH[msg.sender] = predictETHAmount;
-		amountRaisedETH = amountRaisedETH + amountETH;
+		amountRaisedETH += amountETH;
 
 		uint256 amountINK = amountETH * price;
-		balanceOfINK[msg.sender] = balanceOfINK[msg.sender] + amountINK;
-		amountRaisedINK = amountRaisedINK + amountINK;
+		balanceOfINK[msg.sender] += amountINK;
+		amountRaisedINK += amountINK;
 
 		if (amountRaisedINK >= MAXGOAL) {
 			presaleClosed = true;
@@ -150,10 +150,8 @@ contract PresaleETH is Ownable, ReentrancyGuard {
 		uint256 claimableAmount = getClaimableAmount(msg.sender);
 		require(claimableAmount > 0, "claimable amount is zero.");
 		inkToken.safeTransfer(msg.sender, claimableAmount);
-		amountTotalClaimed + claimableAmount;
-		amountClaimed[msg.sender] =
-			amountClaimed[msg.sender] +
-			claimableAmount;
+		amountTotalClaimed += claimableAmount;
+		amountClaimed[msg.sender] += claimableAmount;
 		if (block.timestamp >= vestingCliff + vestingDuration)
 			balanceOfINK[msg.sender] = 0;
 	}

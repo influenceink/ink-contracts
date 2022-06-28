@@ -133,13 +133,13 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 		);
 
 		balanceOfPay[msg.sender] = predictPaidAmount;
-		amountTotalPaid = amountTotalPaid + amountPay;
+		amountTotalPaid += amountPay;
 
 		payToken.safeTransferFrom(msg.sender, address(this), amountPay);
 
 		uint256 amountBuy = amountPay * price;
-		balanceOfBuy[msg.sender] = balanceOfBuy[msg.sender] + amountBuy;
-		amountTotalBought = amountTotalBought + amountBuy;
+		balanceOfBuy[msg.sender] += amountBuy;
+		amountTotalBought += amountBuy;
 
 		if (amountTotalBought >= MAXGOAL) {
 			presaleClosed = true;
@@ -154,11 +154,9 @@ contract PresaleERC20 is Ownable, ReentrancyGuard {
 		uint256 claimableAmount = getClaimableAmount(msg.sender);
 		require(claimableAmount > 0, "claimable amount is zero.");
 		buyToken.safeTransfer(msg.sender, claimableAmount);
-		amountClaimed[msg.sender] =
-			amountClaimed[msg.sender] +
-			claimableAmount;
+		amountClaimed[msg.sender] += claimableAmount;
 
-		amountTotalClaimed + claimableAmount;
+		amountTotalClaimed += claimableAmount;
 		if (block.timestamp >= vestingCliff + vestingDuration)
 			balanceOfBuy[msg.sender] = 0;
 	}
