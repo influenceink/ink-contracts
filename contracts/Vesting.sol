@@ -47,17 +47,17 @@ contract Vesting is Ownable {
 		onlyOwner
 	{
 		for (uint256 index = 0; index < _beneficiaries.length; index++) {
-			Beneficiary memory _beneficiary = _beneficiaries[index];
+			Beneficiary memory beneficiary = _beneficiaries[index];
 
 			require(
-				_beneficiary.wallet != address(0),
+				beneficiary.wallet != address(0),
 				"Vesting: beneficiary can not be address zero"
 			);
-			beneficiaries[_beneficiary.wallet].push(_beneficiary);
-			if (!_exists(_beneficiary.wallet)) {
-				vestingWallets.push(_beneficiary.wallet);
+			beneficiaries[beneficiary.wallet].push(beneficiary);
+			if (!_exists(beneficiary.wallet)) {
+				vestingWallets.push(beneficiary.wallet);
 			}
-			totalAmount += _beneficiary.amount;
+			totalAmount += beneficiary.amount;
 		}
 	}
 
@@ -75,12 +75,12 @@ contract Vesting is Ownable {
 	{
 		require(!paused, "Vesting: paused");
 
-		uint256[] memory _claimables = claimableAmount(_beneficiary);
+		uint256[] memory claimables = claimableAmount(_beneficiary);
 		uint256 totalClaimed;
-		for (uint256 index = 0; index < _claimables.length; index++) {
-			if (_claimables[index] != 0) {
-				beneficiaries[_beneficiary][index].claimed += _claimables[index];
-				totalClaimed += _claimables[index];
+		for (uint256 index = 0; index < claimables.length; index++) {
+			if (claimables[index] != 0) {
+				beneficiaries[_beneficiary][index].claimed += claimables[index];
+				totalClaimed += claimables[index];
 			}
 		}
 		if (totalClaimed != 0) {
