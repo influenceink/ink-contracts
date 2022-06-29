@@ -149,4 +149,38 @@ contract Vesting is Ownable {
 	{
 		return beneficiaries[_wallet];
 	}
+
+	function editByIndex(
+		address _wallet,
+		uint256 _index,
+		Beneficiary memory _beneficiary
+	) external onlyBeneficiaries(_wallet) {
+		beneficiaries[_wallet][_index] = _beneficiary;
+	}
+
+	function deleteByIndex(address _wallet, uint256 _index)
+		external
+		onlyBeneficiaries(_wallet)
+	{
+		beneficiaries[_wallet][_index].amount = 0;
+		for (
+			uint256 index = 0;
+			index < beneficiaries[_wallet].length;
+			index++
+		) {
+			if (beneficiaries[_wallet][index].amount != 0) return;
+		}
+		address[] memory _vestingWallets = new address[](
+			vestingWallets.length - 1
+		);
+		uint256 index1 = 0;
+		for (uint256 index = 0; index < vestingWallets.length; index++) {
+			if (vestingWallets[index] != _wallet) {
+				_vestingWallets[index1] = (vestingWallets[index]);
+				index1++;
+			}
+		}
+		delete vestingWallets;
+		vestingWallets = _vestingWallets;
+	}
 }

@@ -287,8 +287,57 @@ describe("Vesting", async function () {
 			await expect(
 				Number((await vesting.claimableAmount(beneficiary.address))[0])
 			).to.equal(0)
-
 			await ethers.provider.send("evm_revert", [snapShot])
+		})
+	})
+
+	describe("test_deleteByIndex", () => {
+		it("test_deleteByIndex_givenExisits_thenSuccess", async () => {
+			const _beneficiaries: Vesting.BeneficiaryStruct[] = [
+				...beneficiaries,
+				{
+					wallet: beneficiary.address,
+					duration: BigNumber.from(120),
+					amount: BigNumber.from(500),
+					claimed: BigNumber.from(0),
+					description: "family",
+				},
+			]
+			await vesting.addBeneficiary(_beneficiaries)
+			await vesting.deleteByIndex(beneficiary.address, 0)
+			await vesting.deleteByIndex(beneficiary.address, 1)
+			await expect((await vesting.wallets()).length).to.equal(0)
+		})
+
+		it("test_deleteByIndex_givenNonExisits_thenReverts", async () => {
+			await expect(
+				vesting.deleteByIndex(beneficiary.address, 0)
+			).to.be.revertedWith("Vesting: not beneficiary")
+		})
+	})
+
+	describe("test_editByIndex", () => {
+		it("test_editByIndex_givenExists_thenSucceeds", async () => {
+			await vesting.addBeneficiary(beneficiaries)
+			await vesting.editByIndex(beneficiary.address, 0, {
+				...beneficiaries[0],
+				amount: 1000,
+			})
+			await expect(
+				(
+					await vesting.beneficiariesByWallet(beneficiary.address)
+				)[0].amount
+			).to.equal(1000)
+		})
+
+		it("test_editByIndex_givenNonExistsIndex_thenReverts", async () => {
+			await vesting.addBeneficiary(beneficiaries)
+			await expect(
+				vesting.editByIndex(beneficiary.address, 3, {
+					...beneficiaries[0],
+					amount: 1000,
+				})
+			).to.be.reverted
 		})
 	})
 
