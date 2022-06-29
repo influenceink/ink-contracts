@@ -292,7 +292,7 @@ describe("Vesting", async function () {
 	})
 
 	describe("test_deleteByIndex", () => {
-		it("test_deleteByIndex_givenExisits_thenSuccess", async () => {
+		it("test_deleteByIndex_givenExists_thenSuccess", async () => {
 			const _beneficiaries: Vesting.BeneficiaryStruct[] = [
 				...beneficiaries,
 				{
@@ -305,11 +305,14 @@ describe("Vesting", async function () {
 			]
 			await vesting.addBeneficiary(_beneficiaries)
 			await vesting.deleteByIndex(beneficiary.address, 0)
-			await vesting.deleteByIndex(beneficiary.address, 1)
+			await vesting.deleteByIndex(beneficiary.address, 0)
+			await expect(
+				vesting.claimableAmount(beneficiary.address)
+			).to.be.revertedWith("Vesting: not beneficiary")
 			await expect((await vesting.wallets()).length).to.equal(0)
 		})
 
-		it("test_deleteByIndex_givenNonExisits_thenReverts", async () => {
+		it("test_deleteByIndex_givenNonExists_thenReverts", async () => {
 			await expect(
 				vesting.deleteByIndex(beneficiary.address, 0)
 			).to.be.revertedWith("Vesting: not beneficiary")
@@ -321,6 +324,7 @@ describe("Vesting", async function () {
 			await vesting.addBeneficiary(beneficiaries)
 			await vesting.editByIndex(beneficiary.address, 0, {
 				...beneficiaries[0],
+				duration: 300,
 				amount: 1000,
 			})
 			await expect(
@@ -328,6 +332,11 @@ describe("Vesting", async function () {
 					await vesting.beneficiariesByWallet(beneficiary.address)
 				)[0].amount
 			).to.equal(1000)
+			await expect(
+				(
+					await vesting.beneficiariesByWallet(beneficiary.address)
+				)[0].duration
+			).to.equal(300)
 		})
 
 		it("test_editByIndex_givenNonExistsIndex_thenReverts", async () => {

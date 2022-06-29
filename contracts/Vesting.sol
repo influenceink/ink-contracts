@@ -162,7 +162,11 @@ contract Vesting is Ownable {
 		external
 		onlyBeneficiaries(_wallet)
 	{
-		beneficiaries[_wallet][_index].amount = 0;
+		beneficiaries[_wallet][_index] = beneficiaries[_wallet][
+			beneficiaries[_wallet].length - 1
+		];
+		beneficiaries[_wallet].pop();
+
 		for (
 			uint256 index = 0;
 			index < beneficiaries[_wallet].length;
@@ -170,17 +174,12 @@ contract Vesting is Ownable {
 		) {
 			if (beneficiaries[_wallet][index].amount != 0) return;
 		}
-		address[] memory _vestingWallets = new address[](
-			vestingWallets.length - 1
-		);
-		uint256 index1 = 0;
 		for (uint256 index = 0; index < vestingWallets.length; index++) {
-			if (vestingWallets[index] != _wallet) {
-				_vestingWallets[index1] = (vestingWallets[index]);
-				index1++;
+			if (vestingWallets[index] == _wallet) {
+				vestingWallets[index] = vestingWallets[vestingWallets.length - 1];
+				vestingWallets.pop();
+				return;
 			}
 		}
-		delete vestingWallets;
-		vestingWallets = _vestingWallets;
 	}
 }
