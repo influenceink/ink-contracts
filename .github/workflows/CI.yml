@@ -9,6 +9,9 @@ jobs:
 
       - name: Install Dependencies
         uses: bahmutov/npm-install@v1.6.0
+                
+      - name: Compile
+        run: npm run compile
 
       - name: Run tests
         run: npm t
