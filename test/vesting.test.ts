@@ -10,7 +10,7 @@ describe("Vesting", async function () {
 	let vesting: Vesting
 	let contractOwner: SignerWithAddress
 	let beneficiary: SignerWithAddress
-	let beneficiaries: Vesting.BeneficiaryStruct[]
+	let beneficiaries: Vesting.VestingInfoStruct[]
 
 	beforeEach(async () => {
 		;[contractOwner, beneficiary] = await ethers.getSigners()
@@ -289,8 +289,8 @@ describe("Vesting", async function () {
 		})
 	})
 
-	describe("test_deleteByIndex", () => {
-		it("test_deleteByIndex_givenExists_thenSuccess", async () => {
+	describe("test_deleteVestings", () => {
+		it("test_deleteVestings_givenExists_thenSuccess", async () => {
 			await vesting.addVestings(
 				[beneficiary.address, beneficiary.address],
 				[
@@ -303,31 +303,37 @@ describe("Vesting", async function () {
 					},
 				]
 			)
-			await vesting.deleteByIndex(beneficiary.address, 0)
-			await vesting.deleteByIndex(beneficiary.address, 0)
+			await vesting.deleteVestings(
+				[beneficiary.address, beneficiary.address],
+				[1, 0]
+			)
 			await expect(
-				vesting.claimableAmount(beneficiary.address)
-			).to.be.revertedWith("Vesting: not beneficiary")
+				(
+					await vesting.claimableAmount(beneficiary.address)
+				).length
+			).to.equal(0)
 			await expect(
-				vesting.getVestingsOf(beneficiary.address)
-			).to.be.revertedWith("Vesting: not beneficiary")
-		})
-
-		it("test_deleteByIndex_givenNonExists_thenReverts", async () => {
-			await expect(
-				vesting.deleteByIndex(beneficiary.address, 0)
-			).to.be.revertedWith("Vesting: not beneficiary")
+				(
+					await vesting.getVestingsOf(beneficiary.address)
+				).length
+			).to.equal(0)
 		})
 	})
 
-	describe("test_editByIndex", () => {
-		it("test_editByIndex_givenExists_thenSucceeds", async () => {
+	describe("test_editVestings", () => {
+		it("test_editVestings_givenExists_thenSucceeds", async () => {
 			await vesting.addVestings([beneficiary.address], beneficiaries)
-			await vesting.editByIndex(beneficiary.address, 0, {
-				...beneficiaries[0],
-				duration: 300,
-				amount: 1000,
-			})
+			await vesting.editVestings(
+				[beneficiary.address],
+				[0],
+				[
+					{
+						...beneficiaries[0],
+						duration: 300,
+						amount: 1000,
+					},
+				]
+			)
 			await expect(
 				(
 					await vesting.getVestingsOf(beneficiary.address)
@@ -340,27 +346,20 @@ describe("Vesting", async function () {
 			).to.equal(300)
 		})
 
-		it("test_editByIndex_givenNonExistsIndex_thenReverts", async () => {
+		it("test_editVestings_givenNonExistsIndex_thenReverts", async () => {
 			await vesting.addVestings([beneficiary.address], beneficiaries)
 			await expect(
-				vesting.editByIndex(beneficiary.address, 3, {
-					...beneficiaries[0],
-					amount: 1000,
-				})
-			).to.be.revertedWith("Vesting: index is out of range")
+				vesting.editVestings(
+					[beneficiary.address],
+					[3],
+					[
+						{
+							...beneficiaries[0],
+							amount: 1000,
+						},
+					]
+				)
+			).to.be.reverted /*With("Vesting: index is out of range")*/
 		})
-	})
-
-	it("test_onlyBeneficiaries_givenNotBeneficiary_thenReverts", async function () {
-		const [, , other] = await ethers.getSigners()
-		await expect(vesting.claim(other.address)).to.be.revertedWith(
-			"Vesting: not beneficiary"
-		)
-		await expect(vesting.unlockedAmount(other.address)).to.be.revertedWith(
-			"Vesting: not beneficiary"
-		)
-		await expect(
-			vesting.claimableAmount(other.address)
-		).to.be.revertedWith("Vesting: not beneficiary")
 	})
 })

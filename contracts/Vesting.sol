@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract Vesting is Ownable {
 	using SafeERC20 for IERC20;
 
-	struct Beneficiary {
+	struct VestingInfo {
 		uint256 duration;
 		uint256 amount;
 		uint256 claimed;
@@ -16,10 +16,13 @@ contract Vesting is Ownable {
 
 	event Claimed(address _beneficiary, uint256 amount);
 
-	mapping(address => Beneficiary[]) public vestings;
+	mapping(address => VestingInfo[]) public vestings;
 
 	address public immutable vestingToken;
+
 	uint256 public totalAmount;
+	uint256 public totalClaimed;
+
 	uint256 public immutable startTime;
 	bool public paused;
 
@@ -28,31 +31,14 @@ contract Vesting is Ownable {
 		_;
 	}
 
-	constructor(address _token, uint256 _startTime) {
-		vestingToken = _token;
+	modifier checkArrayLengths(uint256 len0, uint256 len1) {
+		require(len0 == len1, "Vesting: array lengths mismatch");
+		_;
+	}
+
+	constructor(address _vestingToken, uint256 _startTime) {
+		vestingToken = _vestingToken;
 		startTime = _startTime;
-	}
-
-	function _exists(address _beneficiary) internal view returns (bool) {
-		return vestings[_beneficiary].length > 0;
-	}
-
-	function addVestings(
-		address[] memory _wallets,
-		Beneficiary[] memory _beneficiaries
-	) external onlyOwner {
-		require(
-			_wallets.length == _beneficiaries.length,
-			"Vesting: both have different length"
-		);
-		for (uint256 index = 0; index < _wallets.length; index++) {
-			require(
-				_wallets[index] != address(0),
-				"Vesting: beneficiary can not be address zero"
-			);
-			vestings[_wallets[index]].push(_beneficiaries[index]);
-			totalAmount += _beneficiaries[index].amount;
-		}
 	}
 
 	function pause() external onlyOwner {
@@ -63,6 +49,64 @@ contract Vesting is Ownable {
 		paused = false;
 	}
 
+	function addVestings(
+		address[] memory _wallets,
+		VestingInfo[] memory _vestings
+	)
+		external
+		onlyOwner
+		checkArrayLengths(_wallets.length, _vestings.length)
+	{
+		for (uint256 i; i < _wallets.length; i++) {
+			require(
+				_wallets[i] != address(0),
+				"Vesting: wallet is zero address"
+			);
+			vestings[_wallets[i]].push(_vestings[i]);
+			totalAmount += _vestings[i].amount;
+		}
+	}
+
+	function editVestings(
+		address[] memory _wallets,
+		uint256[] memory _indexes,
+		VestingInfo[] memory _vestings
+	)
+		external
+		onlyOwner
+		checkArrayLengths(_wallets.length, _indexes.length)
+		checkArrayLengths(_wallets.length, _vestings.length)
+	{
+		for (uint256 i; i < _wallets.length; i++) {
+			address wallet = _wallets[i];
+			uint256 index = _indexes[i];
+			totalAmount -= vestings[wallet][index].amount;
+			vestings[wallet][index] = _vestings[i];
+			totalAmount += _vestings[i].amount;
+		}
+	}
+
+	// indexes must be sorted by descending order
+	function deleteVestings(
+		address[] memory _wallets,
+		uint256[] memory _indexes
+	)
+		external
+		onlyOwner
+		checkArrayLengths(_wallets.length, _indexes.length)
+	{
+		for (uint256 i; i < _wallets.length; i++) {
+			address wallet = _wallets[i];
+			uint256 index = _indexes[i];
+			totalAmount -= vestings[wallet][index].amount;
+			vestings[wallet][index] = vestings[wallet][
+				vestings[wallet].length - 1
+			];
+			vestings[wallet].pop();
+			if (vestings[wallet].length == 0) delete vestings[wallet];
+		}
+	}
+
 	function claim(address _beneficiary)
 		external
 		onlyBeneficiaries(_beneficiary)
@@ -70,28 +114,33 @@ contract Vesting is Ownable {
 		require(!paused, "Vesting: paused");
 
 		uint256[] memory claimables = claimableAmount(_beneficiary);
-		uint256 totalClaimed;
-		for (uint256 index = 0; index < claimables.length; index++) {
-			if (claimables[index] != 0) {
-				vestings[_beneficiary][index].claimed += claimables[index];
-				totalClaimed += claimables[index];
+
+		uint256 totalClaimable;
+		for (uint256 i; i < claimables.length; i++) {
+			if (claimables[i] != 0) {
+				vestings[_beneficiary][i].claimed += claimables[i];
+				totalClaimable += claimables[i];
 			}
 		}
-		if (totalClaimed != 0) {
-			IERC20(vestingToken).safeTransfer(_beneficiary, totalClaimed);
-			emit Claimed(_beneficiary, totalClaimed);
+
+		if (totalClaimable != 0) {
+			IERC20(vestingToken).safeTransfer(_beneficiary, totalClaimable);
+			totalClaimed += totalClaimable;
+			emit Claimed(_beneficiary, totalClaimable);
 		}
 	}
 
 	function unlockedAmount(address _beneficiary)
 		public
 		view
-		onlyBeneficiaries(_beneficiary)
 		returns (uint256[] memory)
 	{
+		if (!_exists(_beneficiary)) return new uint256[](0);
+
 		uint256[] memory unlockedAmounts = new uint256[](
 			vestings[_beneficiary].length
 		);
+
 		for (
 			uint256 index = 0;
 			index < vestings[_beneficiary].length;
@@ -117,55 +166,25 @@ contract Vesting is Ownable {
 	function claimableAmount(address _beneficiary)
 		public
 		view
-		onlyBeneficiaries(_beneficiary)
 		returns (uint256[] memory)
 	{
 		uint256[] memory claimables = unlockedAmount(_beneficiary);
-		for (
-			uint256 index = 0;
-			index < vestings[_beneficiary].length;
-			index++
-		) {
+		for (uint256 index = 0; index < claimables.length; index++) {
 			claimables[index] -= vestings[_beneficiary][index].claimed;
 		}
 
 		return claimables;
 	}
 
+	function _exists(address _beneficiary) internal view returns (bool) {
+		return vestings[_beneficiary].length > 0;
+	}
+
 	function getVestingsOf(address _beneficiary)
 		external
 		view
-		onlyBeneficiaries(_beneficiary)
-		returns (Beneficiary[] memory)
+		returns (VestingInfo[] memory)
 	{
 		return vestings[_beneficiary];
-	}
-
-	function editByIndex(
-		address _wallet,
-		uint256 _index,
-		Beneficiary memory _beneficiary
-	) external onlyBeneficiaries(_wallet) {
-		require(
-			_index >= 0 && _index < vestings[_wallet].length,
-			"Vesting: index is out of range"
-		);
-		vestings[_wallet][_index] = _beneficiary;
-	}
-
-	function deleteByIndex(address _wallet, uint256 _index)
-		external
-		onlyBeneficiaries(_wallet)
-	{
-		require(
-			_index >= 0 && _index < vestings[_wallet].length,
-			"Vesting: index is out of range"
-		);
-		vestings[_wallet][_index] = vestings[_wallet][
-			vestings[_wallet].length - 1
-		];
-		vestings[_wallet].pop();
-
-		if (vestings[_wallet].length == 0) delete vestings[_wallet];
 	}
 }
