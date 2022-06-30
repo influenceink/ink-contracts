@@ -35,7 +35,6 @@ describe("Vesting", async function () {
 
 		beneficiaries = [
 			{
-				wallet: beneficiary.address,
 				duration: BigNumber.from(60),
 				amount: BigNumber.from(500),
 				claimed: BigNumber.from(0),
@@ -52,63 +51,64 @@ describe("Vesting", async function () {
 		expect(await vesting.totalAmount()).to.equal(0)
 	})
 
-	describe("test_addBeneficiary", () => {
-		it("test_addBeneficiary_asUser_thenReverts", async function () {
+	describe("test_addVestings", () => {
+		it("test_addVestings_asUser_thenReverts", async function () {
 			await expect(
-				vesting.connect(beneficiary).addBeneficiary([
-					{
-						wallet: beneficiary.address,
-						duration: 60,
-						amount: 500,
-						claimed: 0,
-						description: "team",
-					},
-				])
+				vesting
+					.connect(beneficiary)
+					.addVestings([beneficiary.address], [...beneficiaries])
 			).to.be.revertedWith("Ownable: caller is not the owner")
 		})
 
-		it("test_addBeneficiary_asOwner_thenSuccess", async function () {
-			await vesting.addBeneficiary(beneficiaries)
-			await expect((await vesting.wallets()).length).to.equal(1)
-			await expect((await vesting.wallets())[0]).to.equal(
-				beneficiary.address
-			)
+		it("test_addVestings_asOwner_thenSuccess", async function () {
+			await vesting.addVestings([beneficiary.address], beneficiaries)
+			await expect(
+				(
+					await vesting.getVestingsOf(beneficiary.address)
+				).length
+			).to.equal(1)
+			await expect(
+				(
+					await vesting.getVestingsOf(beneficiary.address)
+				)[0].description
+			).to.equal(beneficiaries[0].description)
 		})
 
-		it("test_addBeneficiary_asOwner_add_otherBeneficiary_forWallet_thenReverts", async function () {
-			const _beneficiaries: Vesting.BeneficiaryStruct[] = [
+		it("test_addVestings_asOwner_add_otherBeneficiary_forWallet_thenSucceeds", async function () {
+			await vesting.addVestings(
+				[beneficiary.address, beneficiary.address],
+				[
+					...beneficiaries,
+					{
+						duration: BigNumber.from(120),
+						amount: BigNumber.from(500),
+						claimed: BigNumber.from(0),
+						description: "family",
+					},
+				]
+			)
+			await expect(
+				(
+					await vesting.getVestingsOf(beneficiary.address)
+				).length
+			).to.equal(2)
+		})
+	})
+
+	it("test_getVestingsOf", async function () {
+		await vesting.addVestings(
+			[beneficiary.address, beneficiary.address],
+			[
 				...beneficiaries,
 				{
-					wallet: beneficiary.address,
 					duration: BigNumber.from(120),
 					amount: BigNumber.from(500),
 					claimed: BigNumber.from(0),
 					description: "family",
 				},
 			]
-			await vesting.addBeneficiary(_beneficiaries)
-			await expect((await vesting.wallets()).length).to.equal(1)
-			await expect(
-				(
-					await vesting.beneficiariesByWallet(beneficiary.address)
-				).length
-			).to.equal(2)
-		})
-	})
-
-	it("test_beneficiariesByWallet", async function () {
-		const _beneficiaries: Vesting.BeneficiaryStruct[] = [
-			...beneficiaries,
-			{
-				wallet: beneficiary.address,
-				duration: BigNumber.from(120),
-				amount: BigNumber.from(500),
-				claimed: BigNumber.from(0),
-				description: "family",
-			},
-		]
-		await vesting.addBeneficiary(_beneficiaries)
-		const returnedBeneficiaries = await vesting.beneficiariesByWallet(
+		)
+		const returnedBeneficiaries = await vesting.getVestingsOf(
 			beneficiary.address
 		)
 		await expect(returnedBeneficiaries.length).to.equal(2)
@@ -121,14 +121,12 @@ describe("Vesting", async function () {
 		await expect(returnedBeneficiaries[0].description).to.equal(
 			beneficiaries[0].description
 		)
-		await expect(returnedBeneficiaries[1].description).to.equal(
-			_beneficiaries[1].description
-		)
+		await expect(returnedBeneficiaries[1].description).to.equal("family")
 	})
 
 	describe("test_unlockedAmount", () => {
 		it("test_unlockedAmount_beforeCliff_thenReturnsZero", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			await expect(
 				(
 					await vesting.unlockedAmount(beneficiary.address)
@@ -146,7 +144,7 @@ describe("Vesting", async function () {
 		})
 
 		it("test_unlockedAmount_afterCliff_thenReturnsNonzero", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			let snapShot = await ethers.provider.send("evm_snapshot", [])
 			await ethers.provider.send("evm_setNextBlockTimestamp", [cliff + 30])
 			await ethers.provider.send("evm_mine", [])
@@ -159,7 +157,7 @@ describe("Vesting", async function () {
 		})
 
 		it("test_unlockedAmount_afterFinished_thenReturnsTotalAmount", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			let snapShot = await ethers.provider.send("evm_snapshot", [])
 			await ethers.provider.send("evm_setNextBlockTimestamp", [cliff + 70])
 			await ethers.provider.send("evm_mine", [])
@@ -180,7 +178,7 @@ describe("Vesting", async function () {
 		})
 
 		it("test_claim_thenEmit_Claimed", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			let snapShot = await ethers.provider.send("evm_snapshot", [])
 			await ethers.provider.send("evm_setNextBlockTimestamp", [cliff + 30])
 			await ethers.provider.send("evm_mine", [])
@@ -214,7 +212,7 @@ describe("Vesting", async function () {
 		})
 
 		it("test_pause_asOwner_callClaim_thenReverts", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
 			await ethers.provider.send("evm_setNextBlockTimestamp", [cliff + 30])
 			await ethers.provider.send("evm_mine", [])
@@ -227,7 +225,7 @@ describe("Vesting", async function () {
 		})
 
 		it("test_resume_asOwner_thenClaimed", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
 			await ethers.provider.send("evm_setNextBlockTimestamp", [cliff + 30])
 			await ethers.provider.send("evm_mine", [])
@@ -248,7 +246,7 @@ describe("Vesting", async function () {
 
 	describe("test_claimable", () => {
 		it("test_claimableAmount_beforeStart_thenReturnsZero", async function () {
-			vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 
 			await expect(
 				(
@@ -263,7 +261,7 @@ describe("Vesting", async function () {
 		})
 
 		it("test_claimable_afterStart_thenReturnsNonZero", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
 			await ethers.provider.send("evm_setNextBlockTimestamp", [cliff + 30])
@@ -277,7 +275,7 @@ describe("Vesting", async function () {
 		})
 
 		it("test_claimable_after_justClaimed_thenReturnsZero", async function () {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 
 			const snapShot = await ethers.provider.send("evm_snapshot", [])
 			await ethers.provider.send("evm_setNextBlockTimestamp", [cliff + 30])
@@ -293,23 +291,26 @@ describe("Vesting", async function () {
 
 	describe("test_deleteByIndex", () => {
 		it("test_deleteByIndex_givenExists_thenSuccess", async () => {
-			const _beneficiaries: Vesting.BeneficiaryStruct[] = [
-				...beneficiaries,
-				{
-					wallet: beneficiary.address,
-					duration: BigNumber.from(120),
-					amount: BigNumber.from(500),
-					claimed: BigNumber.from(0),
-					description: "family",
-				},
-			]
-			await vesting.addBeneficiary(_beneficiaries)
+			await vesting.addVestings(
+				[beneficiary.address, beneficiary.address],
+				[
+					...beneficiaries,
+					{
+						duration: BigNumber.from(120),
+						amount: BigNumber.from(500),
+						claimed: BigNumber.from(0),
+						description: "family",
+					},
+				]
+			)
 			await vesting.deleteByIndex(beneficiary.address, 0)
 			await vesting.deleteByIndex(beneficiary.address, 0)
 			await expect(
 				vesting.claimableAmount(beneficiary.address)
 			).to.be.revertedWith("Vesting: not beneficiary")
-			await expect((await vesting.wallets()).length).to.equal(0)
+			await expect(
+				vesting.getVestingsOf(beneficiary.address)
+			).to.be.revertedWith("Vesting: not beneficiary")
 		})
 
 		it("test_deleteByIndex_givenNonExists_thenReverts", async () => {
@@ -321,7 +322,7 @@ describe("Vesting", async function () {
 
 	describe("test_editByIndex", () => {
 		it("test_editByIndex_givenExists_thenSucceeds", async () => {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			await vesting.editByIndex(beneficiary.address, 0, {
 				...beneficiaries[0],
 				duration: 300,
@@ -329,24 +330,24 @@ describe("Vesting", async function () {
 			})
 			await expect(
 				(
-					await vesting.beneficiariesByWallet(beneficiary.address)
+					await vesting.getVestingsOf(beneficiary.address)
 				)[0].amount
 			).to.equal(1000)
 			await expect(
 				(
-					await vesting.beneficiariesByWallet(beneficiary.address)
+					await vesting.getVestingsOf(beneficiary.address)
 				)[0].duration
 			).to.equal(300)
 		})
 
 		it("test_editByIndex_givenNonExistsIndex_thenReverts", async () => {
-			await vesting.addBeneficiary(beneficiaries)
+			await vesting.addVestings([beneficiary.address], beneficiaries)
 			await expect(
 				vesting.editByIndex(beneficiary.address, 3, {
 					...beneficiaries[0],
 					amount: 1000,
 				})
-			).to.be.reverted
+			).to.be.revertedWith("Vesting: index is out of range")
 		})
 	})
 
