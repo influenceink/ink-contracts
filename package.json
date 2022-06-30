@@ -7,7 +7,7 @@
 	"license": "MIT",
 	"scripts": {
 		"compile": "npx hardhat compile",
-		"test": "npx hardhat compile & npx hardhat test"
+		"test": "npx hardhat test"
 	},
 	"devDependencies": {
 		"@nomiclabs/hardhat-ethers": "^2.0.4",
