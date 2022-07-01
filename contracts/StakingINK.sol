@@ -1,4 +1,4 @@
-// SPDXLicense-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
 
@@ -17,8 +17,8 @@ contract StakingINK is Ownable {
 		uint256 claimedAmount; // reward amounts user has claimed
 	}
 
-	struct PlanInfo {
-		uint256 stakedAmountOfPlan;
+	struct PoolInfo {
+		uint256 stakedAmountOfPool;
 		uint256 rewardPerBlock;
 		uint256 lockingDuration;
 		bool emergencyFlag;
@@ -27,35 +27,35 @@ contract StakingINK is Ownable {
 	// Address of the INK Token contract
 	IERC20 public inkToken;
 
-	// Info of each stake with specific address and planID
+	// Info of each stake with specific address and poolID
 	mapping(address => mapping(uint256 => StakeInfo)) public stakeLists;
 
-	// Info of each plan
-	PlanInfo[] public plans;
+	// Info of each pool
+	PoolInfo[] public pools;
 
 	event NewStake(
 		address _staker,
 		uint256 _amount,
 		uint256 _timestamp,
-		uint256 _planId
+		uint256 _pid
 	);
 	event NewClaimReward(
 		address _staker,
 		uint256 _amount,
 		uint256 _timestamp,
-		uint256 _planId
+		uint256 _pid
 	);
 	event UnStake(
 		address _staker,
 		uint256 _amount,
 		uint256 _timestamp,
-		uint256 _planId
+		uint256 _pid
 	);
 	event EmergencyWithdraw(
 		address _staker,
 		uint256 _amount,
 		uint256 _timestamp,
-		uint256 _planId
+		uint256 _pid
 	);
 
 	modifier onlyWhitelisted(address _addr) {
@@ -68,17 +68,16 @@ contract StakingINK is Ownable {
 		inkToken = _inkToken;
 	}
 
-	// add a new plan info. can only be called by the owner
-	function addPlanInfo(uint256 _rewardPerBlock, uint256 _lockingDuration)
+	// add a new pool info. can only be called by the owner
+	function addPoolInfo(uint256 _rewardPerBlock, uint256 _lockingDuration)
 		external
 		onlyOwner
 	{
-		require(_lockingDuration != 0, "invalid locking time.");
 		require(_rewardPerBlock != 0, "invalid reward per block.");
 
-		plans.push(
-			PlanInfo({
-				stakedAmountOfPlan: 0,
+		pools.push(
+			PoolInfo({
+				stakedAmountOfPool: 0,
 				rewardPerBlock: _rewardPerBlock,
 				lockingDuration: _lockingDuration,
 				emergencyFlag: false
@@ -92,26 +91,23 @@ contract StakingINK is Ownable {
 		inkToken.safeTransferFrom(msg.sender, address(this), _amount);
 	}
 
-	function setEmergencyFlag(uint256 _planId, bool flag)
-		external
-		onlyOwner
-	{
-		require(plans.length > _planId, "setEmergencyFlag: invalid plan ID.");
-		plans[_planId].emergencyFlag = flag;
+	function setEmergencyFlag(uint256 _pid, bool flag) external onlyOwner {
+		require(pools.length > _pid, "setEmergencyFlag: invalid pool ID.");
+		pools[_pid].emergencyFlag = flag;
 	}
 
-	// stake INK token to specific plan by user
-	function stake(uint256 _planId, uint256 _amount)
+	// stake INK token to specific pool by user
+	function stake(uint256 _pid, uint256 _amount)
 		external
 		onlyWhitelisted(msg.sender)
 	{
-		require(plans.length > _planId, "stake: invalid plan ID.");
+		require(pools.length > _pid, "stake: invalid pool ID.");
 		require(_amount > 0, "stake: invalid amount.");
-		StakeInfo storage stakeInfo = stakeLists[msg.sender][_planId];
-		require(stakeInfo.stakedAmount == 0, "already staking in the plan.");
+		StakeInfo storage stakeInfo = stakeLists[msg.sender][_pid];
+		require(stakeInfo.stakedAmount == 0, "already staking in the pool.");
 
-		plans[_planId].stakedAmountOfPlan =
-			plans[_planId].stakedAmountOfPlan +
+		pools[_pid].stakedAmountOfPool =
+			pools[_pid].stakedAmountOfPool +
 			_amount;
 		inkToken.safeTransferFrom(msg.sender, address(this), _amount);
 
@@ -119,31 +115,24 @@ contract StakingINK is Ownable {
 		stakeInfo.stakedBlock = block.number;
 		stakeInfo.claimedAmount = 0;
 
-		emit NewStake(msg.sender, _amount, stakeInfo.stakedBlock, _planId);
+		emit NewStake(msg.sender, _amount, stakeInfo.stakedBlock, _pid);
 	}
 
 	// unstake INK token with reward if available
-	function unstake(uint256 _planId) external onlyWhitelisted(msg.sender) {
-		require(plans.length > _planId, "unstake: invalid plan ID.");
-		StakeInfo storage stakeInfo = stakeLists[msg.sender][_planId];
+	function unstake(uint256 _pid) external onlyWhitelisted(msg.sender) {
+		require(pools.length > _pid, "unstake: invalid pool ID.");
+		StakeInfo storage stakeInfo = stakeLists[msg.sender][_pid];
 		require(stakeInfo.stakedAmount > 0, "staked amount is zero.");
-		PlanInfo memory plan = plans[_planId];
-		uint256 unstakeAmount = 0;
-		bool emergencyFlag = false;
-		if (block.number >= plan.lockingDuration + stakeInfo.stakedBlock) {
-			unstakeAmount =
-				stakeInfo.stakedAmount +
-				getClaimableRewardAmount(msg.sender, _planId);
-		} else {
-			if (plan.emergencyFlag == true) {
-				unstakeAmount = stakeInfo.stakedAmount - stakeInfo.claimedAmount;
-				emergencyFlag = true;
-			}
-		}
-		require(unstakeAmount > 0, "unstake is not available.");
+		PoolInfo memory pool = pools[_pid];
+		require(
+			block.number >= pool.lockingDuration + stakeInfo.stakedBlock,
+			"your fund is locked."
+		);
+		uint256 unstakeAmount = stakeInfo.stakedAmount +
+			getClaimableRewardAmount(msg.sender, _pid);
 
-		plans[_planId].stakedAmountOfPlan =
-			plans[_planId].stakedAmountOfPlan +
+		pools[_pid].stakedAmountOfPool =
+			pools[_pid].stakedAmountOfPool -
 			stakeInfo.stakedAmount;
 
 		inkToken.safeTransfer(msg.sender, unstakeAmount);
@@ -152,65 +141,75 @@ contract StakingINK is Ownable {
 		stakeInfo.stakedBlock = 0;
 		stakeInfo.claimedAmount = 0;
 
-		if (emergencyFlag == true) {
-			emit EmergencyWithdraw(
-				msg.sender,
-				unstakeAmount,
-				block.number,
-				_planId
-			);
-		} else {
-			emit UnStake(msg.sender, unstakeAmount, block.number, _planId);
-		}
+		emit UnStake(msg.sender, unstakeAmount, block.number, _pid);
 	}
 
-	// claim reward INK tokens
-	function claimReward(uint256 _planId)
+	// emergecy withdraw with penalty
+	function emergencyWithdraw(uint256 _pid)
 		external
 		onlyWhitelisted(msg.sender)
 	{
-		uint256 claimableAmount = getClaimableRewardAmount(
-			msg.sender,
-			_planId
+		require(pools.length > _pid, "emergecywithdraw: invalid pool ID.");
+		StakeInfo storage stakeInfo = stakeLists[msg.sender][_pid];
+		require(stakeInfo.stakedAmount > 0, "staked amount is zero.");
+		PoolInfo memory pool = pools[_pid];
+		require(pool.emergencyFlag == true, "emergency flag is not setted.");
+		require(
+			block.number < pool.lockingDuration + stakeInfo.stakedBlock,
+			"your fund is unlocked."
 		);
+		uint256 unstakeAmount = stakeInfo.stakedAmount -
+			stakeInfo.claimedAmount;
+
+		pools[_pid].stakedAmountOfPool =
+			pools[_pid].stakedAmountOfPool -
+			stakeInfo.stakedAmount;
+
+		inkToken.safeTransfer(msg.sender, unstakeAmount);
+
+		stakeInfo.stakedAmount = 0;
+		stakeInfo.stakedBlock = 0;
+		stakeInfo.claimedAmount = 0;
+
+		emit EmergencyWithdraw(msg.sender, unstakeAmount, block.number, _pid);
+	}
+
+	// claim reward INK tokens
+	function claimReward(uint256 _pid) external onlyWhitelisted(msg.sender) {
+		uint256 claimableAmount = getClaimableRewardAmount(msg.sender, _pid);
 
 		require(claimableAmount > 0, "claimable amount is zero.");
 		inkToken.safeTransfer(msg.sender, claimableAmount);
 
-		StakeInfo storage stakeInfo = stakeLists[msg.sender][_planId];
+		StakeInfo storage stakeInfo = stakeLists[msg.sender][_pid];
 		stakeInfo.claimedAmount = stakeInfo.claimedAmount + claimableAmount;
 
-		emit NewClaimReward(
-			msg.sender,
-			claimableAmount,
-			block.number,
-			_planId
-		);
+		emit NewClaimReward(msg.sender, claimableAmount, block.number, _pid);
 	}
 
-	function getClaimableRewardAmount(address _staker, uint256 _planId)
+	function getClaimableRewardAmount(address _staker, uint256 _pid)
 		public
 		view
 		returns (uint256)
 	{
-		if (plans.length <= _planId) return 0;
-		PlanInfo memory plan = plans[_planId];
-		uint256 rewardPerBlock = plan.rewardPerBlock;
-		StakeInfo storage stakeInfo = stakeLists[_staker][_planId];
+		if (pools.length <= _pid) return 0;
+		PoolInfo memory pool = pools[_pid];
+		uint256 rewardPerBlock = pool.rewardPerBlock;
+		StakeInfo storage stakeInfo = stakeLists[_staker][_pid];
 		if (stakeInfo.stakedAmount == 0) return 0;
 		uint256 blockCount = block.number - stakeInfo.stakedBlock;
-		if (blockCount >= plan.lockingDuration) {
-			blockCount = plan.lockingDuration;
+		if (blockCount >= pool.lockingDuration && pool.lockingDuration != 0) {
+			blockCount = pool.lockingDuration;
 		}
 
 		uint256 claimableReward = ((blockCount *
 			rewardPerBlock *
-			stakeInfo.stakedAmount) / plan.stakedAmountOfPlan) -
+			stakeInfo.stakedAmount) / pool.stakedAmountOfPool) -
 			stakeInfo.claimedAmount;
 		return claimableReward;
 	}
 
-	function getAllPlans() external view returns (PlanInfo[] memory) {
-		return plans;
+	function getAllPools() external view returns (PoolInfo[] memory) {
+		return pools;
 	}
 }
