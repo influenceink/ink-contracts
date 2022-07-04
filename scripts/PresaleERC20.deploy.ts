@@ -1,4 +1,5 @@
 import { ethers } from "hardhat"
+import { output } from "./util"
 import presaleERC20Params from "./deploymentParams/presaleERC20.json"
 
 async function main() {
@@ -13,6 +14,9 @@ async function main() {
 
 	await presaleERC20.deployed()
 
+	output(process.env.HARDHAT_NETWORK || "", {
+		PresaleERC20: presaleERC20.address,
+	})
 	console.log("PresaleERC20 deployed to:", presaleERC20.address)
 }
 

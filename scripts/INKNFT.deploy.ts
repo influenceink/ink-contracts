@@ -1,4 +1,5 @@
 import { ethers } from "hardhat"
+import { output } from "./util"
 import inknftParams from "./deploymentParams/inknft.json"
 
 async function main() {
@@ -14,6 +15,7 @@ async function main() {
 
 	await inknft.deployed()
 
+	output(process.env.HARDHAT_NETWORK || "", { INKNFT: inknft.address })
 	console.log("INKNFT deployed to:", inknft.address)
 }
 

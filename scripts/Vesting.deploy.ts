@@ -1,4 +1,5 @@
 import { ethers } from "hardhat"
+import { output } from "./util"
 import vestingParams from "./deploymentParams/vesting.json"
 
 async function main() {
@@ -10,6 +11,7 @@ async function main() {
 
 	await vesting.deployed()
 
+	output(process.env.HARDHAT_NETWORK || "", { Vesting: vesting.address })
 	console.log("Vesting deployed to:", vesting.address)
 }
 

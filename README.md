@@ -13,8 +13,6 @@ Solidity contracts based on `ERC20`, `ERC721`. `Presale`, `Vesting` and
    |  └─ deploymentParams                         # parameters for contract deployment
    ├─ test                                        # test scripts
    ├─ .env
-   ├─ .eslintignore
-   ├─ .eslintrc.js
    ├─ .gitignore
    ├─ .npmignore
    ├─ .prettierignore
@@ -36,10 +34,6 @@ Solidity contracts based on `ERC20`, `ERC721`. `Presale`, `Vesting` and
 
 2. Install node modules:
 
-> npm install
-
-Or
-
 > yarn
 
 ## Set Configuration
@@ -56,20 +50,53 @@ Example:
 
 ```bash
 ETHERSCAN_API_KEY=ABC123ABC123ABC123ABC123ABC123ABC1
-ROPSTEN_URL=https://eth-ropsten.alchemyapi.io/v2/<YOUR ALCHEMY KEY>
+MAINNET_RPC=https://polygon-mainnet.g.alchemy.com/v2/zcNIdlPU5Vn-2U0uQpfi0AZf11F4rrV5
+MUMBAI_RPC=https://polygon-mumbai.g.alchemy.com/v2/zcNIdlPU5Vn-2U0uQpfi0AZf11F4rrV5
 PRIVATE_KEY=0xabc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1
 ```
 
 ## Deploy Contracts
 
-Replace `CONTRACT` and `NETWORK` in this command:
-
-> yarn deploy-CONTRACT:NETWORK
-
-Example:
+1.  INK contract
 
 ```shell
-yarn deploy-ink:polygon
+yarn deploy-ink:mainnet
+yarn deploy-ink:mumbai
+```
+
+2.  INKNFT contract
+
+```shell
+yarn deploy-inknft:mainnet
+yarn deploy-inknft:mumbai
+```
+
+3.  PresaleERC20 contract
+
+```shell
+yarn deploy-presale-erc20:mainnet
+yarn deploy-presale-erc20:mumbai
+```
+
+4. PresaleETH contract
+
+```shell
+yarn deploy-presale-eth:mainnet
+yarn deploy-presale-eth:mumbai
+```
+
+5. Vesting contract
+
+```shell
+yarn deploy-vesting:mainnet
+yarn deploy-vesting:mumbai
+```
+
+6. StakingINK contract
+
+```shell
+yarn deploy-staking-ink:mainnet
+yarn deploy-staking-ink:mumbai
 ```
 
 # Verification
@@ -81,19 +108,15 @@ replace `DEPLOYED_CONTRACT_ADDRESS` and `NETWORK` in this command:
 yarn verify:NETWORK DEPLOYED_CONTRACT_ADDRESS
 ```
 
+`NETWORK` can be `mainnet` or `mumbai`.
+
 EXAMPLE:
 
 ```shell
-yarn verify:polygon 0xABC123ABC123ABC123ABC123ABC123ABC1
+yarn verify:mainnet 0xABC123ABC123ABC123ABC123ABC123ABC1
 ```
 
 ## Test
-
-```shell
-npm run test
-```
-
-Or
 
 ```shell
 yarn test

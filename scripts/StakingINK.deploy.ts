@@ -1,4 +1,5 @@
 import { ethers } from "hardhat"
+import { output } from "./util"
 import stakingINKParams from "./deploymentParams/stakingINK.json"
 
 async function main() {
@@ -7,7 +8,10 @@ async function main() {
 
 	await stakingINK.deployed()
 
-	console.log("PresaleETH deployed to:", stakingINK.address)
+	output(process.env.HARDHAT_NETWORK || "", {
+		StakingINK: stakingINK.address,
+	})
+	console.log("StakingINK deployed to:", stakingINK.address)
 }
 
 // We recommend this pattern to be able to use async/await everywhere

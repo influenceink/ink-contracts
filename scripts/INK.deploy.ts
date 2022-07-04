@@ -1,4 +1,5 @@
 import { ethers } from "hardhat"
+import { output } from "./util"
 
 async function main() {
 	const INK = await ethers.getContractFactory("INK")
@@ -6,7 +7,8 @@ async function main() {
 
 	await ink.deployed()
 
-	console.log("INK deployed to:", ink.address)
+	output(process.env.HARDHAT_NETWORK || "", { INK: ink.address })
+	console.log("INK deployed to:", "ink.address")
 }
 
 // We recommend this pattern to be able to use async/await everywhere
