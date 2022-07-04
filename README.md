@@ -1,46 +1,100 @@
-# Advanced Sample Hardhat Project
+# ink-contracts
 
-This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
+Solidity contracts based on `ERC20`, `ERC721`. `Presale`, `Vesting` and
+`Staking` contracts for ERC20 token.
 
-The project comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts. It also comes with a variety of other tools, preconfigured to work with the project code.
+## Structure
 
-Try running some of the following tasks:
-
-```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-npx hardhat help
-REPORT_GAS=true npx hardhat test
-npx hardhat coverage
-npx hardhat run scripts/deploy.ts
-TS_NODE_FILES=true npx ts-node scripts/deploy.ts
-npx eslint '**/*.{js,ts}'
-npx eslint '**/*.{js,ts}' --fix
-npx prettier '**/*.{json,sol,md}' --check
-npx prettier '**/*.{json,sol,md}' --write
-npx solhint 'contracts/**/*.sol'
-npx solhint 'contracts/**/*.sol' --fix
+```bash
+   ├─ .github
+   ├─ .vscode
+   ├─ contracts                                   # solidity contracts
+   ├─ scripts                                     # deploy scripts
+   |  └─ deploymentParams                         # parameters for contract deployment
+   ├─ test                                        # test scripts
+   ├─ .env
+   ├─ .eslintignore
+   ├─ .eslintrc.js
+   ├─ .gitignore
+   ├─ .npmignore
+   ├─ .prettierignore
+   ├─ .prettierrc
+   ├─ .solhint.json
+   ├─ .solhitignore
+   ├─ hardhat.config.ts
+   ├─ package.json
+   ├─ README.md
+   ├─ tsconfig.json
+   └─ yarn.lock
 ```
 
-# Etherscan verification
+## Install
 
-To try out Etherscan verification, you first need to deploy a contract to an Ethereum network that's supported by Etherscan, such as Ropsten.
+1. Clone Repo:
 
-In this project, copy the .env.example file to a file named .env, and then edit it to fill in the details. Enter your Etherscan API key, your Ropsten node URL (eg from Alchemy), and the private key of the account which will send the deployment transaction. With a valid .env file in place, first deploy your contract:
+> git clone https://github.com/influenceink/ink-contracts
 
-```shell
-hardhat run --network ropsten scripts/deploy.ts
+2. Install node modules:
+
+> npm install
+
+Or
+
+> yarn
+
+## Set Configuration
+
+To try out deployment or verification, you first need to set configuration.
+
+In this project, copy the .env.example file to a file named .env, and then
+edit it to fill in the details. Enter your Etherscan API key, your network
+node URL (eg from Alchemy), and the private key of the account which will
+send the deployment transaction. With a valid .env file in place, first
+deploy your contract:
+
+Example:
+
+```bash
+ETHERSCAN_API_KEY=ABC123ABC123ABC123ABC123ABC123ABC1
+ROPSTEN_URL=https://eth-ropsten.alchemyapi.io/v2/<YOUR ALCHEMY KEY>
+PRIVATE_KEY=0xabc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abc1
 ```
 
-Then, copy the deployment address and paste it in to replace `DEPLOYED_CONTRACT_ADDRESS` in this command:
+## Deploy Contracts
+
+Replace `CONTRACT` and `NETWORK` in this command:
+
+> yarn deploy-CONTRACT:NETWORK
+
+Example:
 
 ```shell
-npx hardhat verify --network ropsten DEPLOYED_CONTRACT_ADDRESS "Hello, Hardhat!"
+yarn deploy-ink:polygon
 ```
 
-# Performance optimizations
+# Verification
 
-For faster runs of your tests and scripts, consider skipping ts-node's type checking by setting the environment variable `TS_NODE_TRANSPILE_ONLY` to `1` in hardhat's environment. For more details see [the documentation](https://hardhat.org/guides/typescript.html#performance-optimizations).
+Then, copy the deployment address and network name, then paste it in to
+replace `DEPLOYED_CONTRACT_ADDRESS` and `NETWORK` in this command:
+
+```shell
+yarn verify:NETWORK DEPLOYED_CONTRACT_ADDRESS
+```
+
+EXAMPLE:
+
+```shell
+yarn verify:polygon 0xABC123ABC123ABC123ABC123ABC123ABC1
+```
+
+## Test
+
+```shell
+npm run test
+```
+
+Or
+
+```shell
+yarn test
+```

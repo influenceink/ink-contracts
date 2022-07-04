@@ -128,7 +128,7 @@ describe("PresaleERC20", function () {
 			presaleERC20
 				.connect(owner)
 				.setVestingParameter(vestingDuration, vestingCliff)
-		).to.be.revertedWith("vesting parameter can't change")
+		).to.be.revertedWith("vesting parameter can't change.")
 		await ethers.provider.send("evm_revert", [snapShot])
 	})
 
@@ -137,7 +137,7 @@ describe("PresaleERC20", function () {
 			presaleERC20
 				.connect(owner)
 				.setVestingParameter(vestingDuration, startTime - 1)
-		).to.be.revertedWith("vesting parameter can't change")
+		).to.be.revertedWith("vesting parameter can't change.")
 	})
 
 	it("test_setVestingParameter_asOwner_beforePresaleClosed_thenSuccess", async () => {
