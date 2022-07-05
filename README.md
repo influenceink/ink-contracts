@@ -71,28 +71,30 @@ yarn deploy-inknft:mainnet
 yarn deploy-inknft:mumbai
 ```
 
-3.  PresaleERC20 contract
+3.  Presale contract
 
-```shell
-yarn deploy-presale-erc20:mainnet
-yarn deploy-presale-erc20:mumbai
-```
+- For ERC20:
 
-4. PresaleETH contract
+  ```shell
+  yarn deploy-presale-erc20:mainnet
+  yarn deploy-presale-erc20:mumbai
+  ```
 
-```shell
-yarn deploy-presale-eth:mainnet
-yarn deploy-presale-eth:mumbai
-```
+- For ETH:
 
-5. Vesting contract
+  ```shell
+  yarn deploy-presale-eth:mainnet
+  yarn deploy-presale-eth:mumbai
+  ```
+
+4. Vesting contract
 
 ```shell
 yarn deploy-vesting:mainnet
 yarn deploy-vesting:mumbai
 ```
 
-6. StakingINK contract
+5. StakingINK contract
 
 ```shell
 yarn deploy-staking-ink:mainnet
