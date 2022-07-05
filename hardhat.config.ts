@@ -2,7 +2,7 @@ import * as dotenv from "dotenv"
 
 import { HardhatUserConfig, task } from "hardhat/config"
 import "@nomiclabs/hardhat-etherscan"
-import "@nomiclabs/hardhat-waffle"
+import "@nomicfoundation/hardhat-chai-matchers"
 import "@typechain/hardhat"
 import "hardhat-gas-reporter"
 import "solidity-coverage"
@@ -25,18 +25,18 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 const config: HardhatUserConfig = {
 	solidity: "0.8.4",
 	networks: {
-		ropsten: {
-			url: process.env.ROPSTEN_RPC || "",
+		mainnet: {
+			url: process.env.MAINNET_RPC || "",
 			accounts:
 				process.env.PRIVATE_KEY !== undefined
-					? [process.env.PRIVATE_KEY]
+					? [`0x${process.env.PRIVATE_KEY}`]
 					: [],
 		},
 		mumbai: {
 			url: process.env.MUMBAI_RPC || "",
 			accounts:
 				process.env.PRIVATE_KEY !== undefined
-					? [process.env.PRIVATE_KEY]
+					? [`0x${process.env.PRIVATE_KEY}`]
 					: [],
 		},
 	},
@@ -50,4 +50,3 @@ const config: HardhatUserConfig = {
 }
 
 export default config
-
