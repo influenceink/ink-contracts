@@ -198,9 +198,9 @@ describe("INKNFT_DutchAuction", () => {
 
 		await inknftDA
 			.connect(signers[2])
-			.mintDutchAuction(signers[0].address, 2, proof)
+			.mintDutchAuction(signers[2].address, 2, proof)
 
-		await expect(await inknftDA.balanceOf(signers[0].address)).to.equal(2)
+		await expect(await inknftDA.balanceOf(signers[2].address)).to.equal(2)
 		await expect(await payToken.balanceOf(inknftDA.address)).to.be.above(
 			BigNumber.from(0)
 		)
@@ -221,23 +221,23 @@ describe("INKNFT_DutchAuction", () => {
 
 		await inknftDA
 			.connect(signers[2])
-			.mintDutchAuction(signers[0].address, 2, proof)
+			.mintDutchAuction(signers[2].address, 2, proof)
 
 		await expect(
 			inknftDA
 				.connect(signers[2])
-				.mintDutchAuction(signers[0].address, 2, proof)
+				.mintDutchAuction(signers[2].address, 2, proof)
 		).to.be.revertedWith("INKNFT: minting amount exceeds")
 
 		await inknftDA
 			.connect(signers[2])
-			.mintDutchAuction(signers[0].address, 1, proof)
+			.mintDutchAuction(signers[2].address, 1, proof)
 
 		proof = merkleTree.getHexProof(merkleLeaves[1])
 		await expect(
 			inknftDA
 				.connect(signers[3])
-				.mintDutchAuction(signers[4].address, 2, proof)
+				.mintDutchAuction(signers[3].address, 2, proof)
 		).to.be.revertedWith("INKNFT: minting amount exceeds")
 
 		await ethers.provider.send("evm_revert", [snapShot])
@@ -245,7 +245,7 @@ describe("INKNFT_DutchAuction", () => {
 
 	it("test_ownerMint_asUser_thenReverts", async () => {
 		await expect(
-			inknftDA.connect(signers[2]).ownerMint(signers[0].address, 2)
+			inknftDA.connect(signers[2]).ownerMint(signers[2].address, 2)
 		).to.be.revertedWith("Ownable: caller is not the owner")
 	})
 
@@ -272,10 +272,9 @@ describe("INKNFT_DutchAuction", () => {
 
 		await inknftDA
 			.connect(signers[2])
-			.mintDutchAuction(signers[0].address, 2, proof)
-		await inknftDA.withdrawFunds(signers[3].address)
+			.mintDutchAuction(signers[2].address, 2, proof)
 		await expect(
-			payToken.connect(signers[2]).balanceOf(signers[3].address)
+			inknftDA.connect(signers[2]).withdrawFunds(signers[3].address)
 		).to.be.revertedWith("Ownable: caller is not the owner")
 
 		await ethers.provider.send("evm_revert", [snapShot])
@@ -294,7 +293,7 @@ describe("INKNFT_DutchAuction", () => {
 
 		await inknftDA
 			.connect(signers[2])
-			.mintDutchAuction(signers[0].address, 2, proof)
+			.mintDutchAuction(signers[2].address, 2, proof)
 		await inknftDA.withdrawFunds(signers[3].address)
 		await expect(await payToken.balanceOf(signers[3].address)).to.equal(
 			168
