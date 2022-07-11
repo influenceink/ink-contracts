@@ -7,9 +7,9 @@ import { MerkleTree } from "merkletreejs"
 
 describe("INKNFT_DutchAuction", () => {
 	let startTime: number
-	let duration: number
-	let totalAmount: number
-	let tokensReservedForOwner: number
+	let endTime: number
+	let maxSupply: number
+	let reservedForOwner: number
 	let limitPerWallet: number
 	let limitPerTx: number
 	let startingPrice: number
@@ -30,9 +30,9 @@ describe("INKNFT_DutchAuction", () => {
 					await ethers.provider.getBlockNumber()
 				)
 			).timestamp + 3600
-		duration = 3600
-		totalAmount = 5
-		tokensReservedForOwner = 1
+		endTime = startTime + 3600
+		maxSupply = 5
+		reservedForOwner = 1
 		limitPerWallet = 3
 		limitPerTx = 2
 		startingPrice = 100
@@ -53,9 +53,9 @@ describe("INKNFT_DutchAuction", () => {
 			await ethers.getContractFactory("INKNFTDA", signers[1])
 		).deploy(
 			startTime,
-			duration,
-			totalAmount,
-			tokensReservedForOwner,
+			endTime,
+			maxSupply,
+			reservedForOwner,
 			limitPerWallet,
 			limitPerTx,
 			startingPrice,
@@ -67,10 +67,10 @@ describe("INKNFT_DutchAuction", () => {
 
 	it("test_setup", async () => {
 		await expect(await inknftDA.startTime()).to.equal(startTime)
-		await expect(await inknftDA.duration()).to.equal(duration)
-		await expect(await inknftDA.totalAmount()).to.equal(totalAmount)
-		await expect(await inknftDA.tokensReservedForOwner()).to.equal(
-			tokensReservedForOwner
+		await expect(await inknftDA.endTime()).to.equal(endTime)
+		await expect(await inknftDA.maxSupply()).to.equal(maxSupply)
+		await expect(await inknftDA.reservedForOwner()).to.equal(
+			reservedForOwner
 		)
 		await expect(await inknftDA.limitPerWallet()).to.equal(limitPerWallet)
 		await expect(await inknftDA.limitPerTx()).to.equal(limitPerTx)
@@ -78,18 +78,18 @@ describe("INKNFT_DutchAuction", () => {
 		await expect(await inknftDA.finalPrice()).to.equal(finalPrice)
 		await expect(await inknftDA.payToken()).to.equal(payToken.address)
 		await expect(await inknftDA.totalSupplyForDutchAuction()).to.equal(
-			totalAmount - tokensReservedForOwner
+			maxSupply - reservedForOwner
 		)
 	})
 
 	it("test_setPeriod_asUser_thenReverts", async () => {
 		await expect(
-			inknftDA.connect(signers[0]).setPeriod(startTime, duration)
+			inknftDA.connect(signers[0]).setPeriod(startTime, endTime)
 		).to.be.revertedWith("Ownable: caller is not the owner")
 	})
 
 	it("test_setPeriod_asOwner_thenSucceds", async () => {
-		await inknftDA.setPeriod(startTime, duration)
+		await inknftDA.setPeriod(startTime, endTime)
 	})
 
 	it("test_setMerkleRoot_asUser_thenReverts", async () => {
@@ -149,9 +149,7 @@ describe("INKNFT_DutchAuction", () => {
 		).to.be.revertedWith("INKNFT: sale is not alive")
 
 		const snapShot = await ethers.provider.send("evm_snapshot", [])
-		await ethers.provider.send("evm_setNextBlockTimestamp", [
-			startTime + duration + 10,
-		])
+		await ethers.provider.send("evm_setNextBlockTimestamp", [endTime + 10])
 		await ethers.provider.send("evm_mine", [])
 
 		proof = merkleTree.getHexProof(merkleLeaves[0])
@@ -261,7 +259,7 @@ describe("INKNFT_DutchAuction", () => {
 		await inknftDA.ownerMint(signers[0].address, 1)
 	})
 
-	it("test_withdrawTo_asOwner_thenSucceeds", async () => {
+	it("test_withdrawFunds_asUser_thenReverts", async () => {
 		const snapShot = await ethers.provider.send("evm_snapshot", [])
 		await ethers.provider.send("evm_setNextBlockTimestamp", [
 			startTime + 1200,
@@ -275,7 +273,29 @@ describe("INKNFT_DutchAuction", () => {
 		await inknftDA
 			.connect(signers[2])
 			.mintDutchAuction(signers[0].address, 2, proof)
-		await inknftDA.withdrawTo(signers[3].address)
+		await inknftDA.withdrawFunds(signers[3].address)
+		await expect(
+			payToken.connect(signers[2]).balanceOf(signers[3].address)
+		).to.be.revertedWith("Ownable: caller is not the owner")
+
+		await ethers.provider.send("evm_revert", [snapShot])
+	})
+
+	it("test_withdrawFunds_asOwner_thenSucceeds", async () => {
+		const snapShot = await ethers.provider.send("evm_snapshot", [])
+		await ethers.provider.send("evm_setNextBlockTimestamp", [
+			startTime + 1200,
+		])
+		await ethers.provider.send("evm_mine", [])
+
+		let proof = merkleTree.getHexProof(merkleLeaves[0])
+		await payToken.transfer(signers[2].address, 200)
+		await payToken.connect(signers[2]).approve(inknftDA.address, 200)
+
+		await inknftDA
+			.connect(signers[2])
+			.mintDutchAuction(signers[0].address, 2, proof)
+		await inknftDA.withdrawFunds(signers[3].address)
 		await expect(await payToken.balanceOf(signers[3].address)).to.equal(
 			168
 		)

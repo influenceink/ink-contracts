@@ -18,9 +18,9 @@ contract INKNFTDA is ERC721, ERC721Enumerable, Ownable {
 	Counters.Counter private counter;
 
 	uint256 public startTime;
-	uint256 public duration;
-	uint256 public immutable totalAmount;
-	uint256 public immutable tokensReservedForOwner;
+	uint256 public endTime;
+	uint256 public immutable maxSupply;
+	uint256 public immutable reservedForOwner;
 	uint256 public limitPerWallet;
 	uint256 public limitPerTx;
 	uint256 public immutable startingPrice;
@@ -46,9 +46,9 @@ contract INKNFTDA is ERC721, ERC721Enumerable, Ownable {
 
 	constructor(
 		uint256 _startTime,
-		uint256 _duration,
-		uint256 _totalAmount,
-		uint256 _tokensReservedForOwner,
+		uint256 _endTime,
+		uint256 _maxSupply,
+		uint256 _reservedForOwner,
 		uint256 _limitPerWallet,
 		uint256 _limitPerTx,
 		uint256 _startingPrice,
@@ -56,9 +56,9 @@ contract INKNFTDA is ERC721, ERC721Enumerable, Ownable {
 		address _payToken
 	) ERC721("Influenceink NFT", "INKNFT") {
 		startTime = _startTime;
-		duration = _duration;
-		totalAmount = _totalAmount;
-		tokensReservedForOwner = _tokensReservedForOwner;
+		endTime = _endTime;
+		maxSupply = _maxSupply;
+		reservedForOwner = _reservedForOwner;
 		limitPerWallet = _limitPerWallet;
 		limitPerTx = _limitPerTx;
 		startingPrice = _startingPrice;
@@ -66,12 +66,12 @@ contract INKNFTDA is ERC721, ERC721Enumerable, Ownable {
 		payToken = _payToken;
 	}
 
-	function setPeriod(uint256 _startTime, uint256 _duration)
+	function setPeriod(uint256 _startTime, uint256 _endTime)
 		external
 		onlyOwner
 	{
 		startTime = _startTime;
-		duration = _duration;
+		endTime = _endTime;
 	}
 
 	function setMerkleRoot(bytes32 _merkleRoot) external onlyOwner {
@@ -100,8 +100,7 @@ contract INKNFTDA is ERC721, ERC721Enumerable, Ownable {
 		bytes32[] memory _proof
 	) external ensureWhitelisted(_proof) {
 		require(
-			block.timestamp >= startTime &&
-				block.timestamp <= startTime + duration,
+			block.timestamp >= startTime && block.timestamp <= endTime,
 			"INKNFT: sale is not alive"
 		);
 		require(
@@ -110,31 +109,31 @@ contract INKNFTDA is ERC721, ERC721Enumerable, Ownable {
 		);
 		require(
 			tokensMintedForDutchAuction + _amount <=
-				totalAmount - tokensReservedForOwner &&
-				saleBalances[msg.sender] + _amount <= limitPerWallet,
+				maxSupply - reservedForOwner &&
+				saleBalances[_to] + _amount <= limitPerWallet,
 			"INKNFT: minting amount exceeds"
 		);
 
 		IERC20(payToken).safeTransferFrom(
-			msg.sender,
+			_to,
 			address(this),
 			getCurrentDutchPrice() * _amount
 		);
-		saleBalances[msg.sender] += _amount;
+		saleBalances[_to] += _amount;
 		tokensMintedForDutchAuction += _amount;
 		_batchMint(_to, _amount);
 	}
 
 	function ownerMint(address _to, uint256 _amount) external onlyOwner {
 		require(
-			tokensMintedByOwner + _amount <= tokensReservedForOwner,
+			tokensMintedByOwner + _amount <= reservedForOwner,
 			"INKNFT: invalid mint amount"
 		);
 		_batchMint(_to, _amount);
 		tokensMintedByOwner += _amount;
 	}
 
-	function withdrawTo(address _to) external onlyOwner {
+	function withdrawFunds(address _to) external onlyOwner {
 		require(_to != address(0), "INKNFT: recipient is the zero address");
 		IERC20(payToken).safeTransfer(
 			_to,
@@ -149,24 +148,20 @@ contract INKNFTDA is ERC721, ERC721Enumerable, Ownable {
 		}
 	}
 
-	function getTimeElapsed() public view returns (uint256) {
-		return
-			startTime > 0
-				? startTime + duration >= block.timestamp
-					? block.timestamp - startTime
-					: duration
-				: 0;
-	}
-
 	function getCurrentDutchPrice() public view returns (uint256) {
+		uint256 elapsedTime = startTime > 0
+			? endTime >= block.timestamp
+				? block.timestamp - startTime
+				: endTime - startTime
+			: 0;
 		return
 			startingPrice -
-			((startingPrice - finalPrice) * getTimeElapsed()) /
-			duration;
+			((startingPrice - finalPrice) * elapsedTime) /
+			(endTime - startTime);
 	}
 
 	function totalSupplyForDutchAuction() public view returns (uint256) {
-		return totalAmount - tokensReservedForOwner;
+		return maxSupply - reservedForOwner;
 	}
 
 	function tokenURI(uint256 _tokenId)

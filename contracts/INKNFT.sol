@@ -105,16 +105,16 @@ contract INKNFT is ERC721, ERC721Enumerable, Ownable {
 			"INKNFT: invalid mint amount"
 		);
 		require(
-			saleBalances[msg.sender] + _amount <= limitPerWallet,
+			saleBalances[_to] + _amount <= limitPerWallet,
 			"INKNFT: minting amount exceeds"
 		);
 
 		IERC20(payToken).safeTransferFrom(
-			msg.sender,
+			_to,
 			address(this),
 			_amount * mintPrice
 		);
-		saleBalances[msg.sender] += _amount;
+		saleBalances[_to] += _amount;
 		_batchMint(_to, _amount);
 	}
 
