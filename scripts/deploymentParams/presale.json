@@ -1,0 +1,8 @@
+{
+	"totalAmount": 0,
+	"maxAmountPerWallet": 0,
+	"minAmountPerWallet": 0,
+	"usdc": "0x00000000000000000000000000000000000000",
+	"weth": "0x00000000000000000000000000000000000000",
+	"routerAddress": "0x000000000000000000000000000000"
+}

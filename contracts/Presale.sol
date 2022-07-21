@@ -71,7 +71,7 @@ contract Presale is Ownable {
 				tokenIn: weth,
 				tokenOut: usdc,
 				fee: 3000,
-				recipient: msg.sender,
+				recipient: address(this),
 				deadline: block.timestamp + 15,
 				amountIn: msg.value,
 				amountOutMinimum: 0,
@@ -83,6 +83,11 @@ contract Presale is Ownable {
 		}(params);
 		assert(_investable(usdcAmount));
 		_invest(usdcAmount);
+	}
+
+	function withdrawFunds(address _to) external onlyOwner {
+		require(_to != address(0), "Presale: recipient is the zero address");
+		IERC20(usdc).safeTransfer(_to, IERC20(usdc).balanceOf(address(this)));
 	}
 
 	function _invest(uint256 _amount) internal {
