@@ -17,7 +17,15 @@ contract MockUniswapV3Router {
 			"MockUniswapV3Router: too late tansaction"
 		);
 
-		require(msg.value > 0, "MockUniswapV3Router: no ether sent");
+		// require(msg.value > 0, "MockUniswapV3Router: no ether sent");
+
+		if (msg.value == 0) {
+			IERC20(params.tokenIn).transferFrom(
+				msg.sender,
+				address(this),
+				params.amountIn
+			);
+		}
 
 		IERC20 tokenOut = IERC20(params.tokenOut);
 
