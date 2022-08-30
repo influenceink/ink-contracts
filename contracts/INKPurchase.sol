@@ -9,6 +9,8 @@ contract INKPurchase is Ownable {
 	using SafeERC20 for IERC20;
 
 	address public immutable usdc;
+	address public constant weth9 =
+		0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 	ISwapRouter public uniswapRouter;
 	mapping(address => uint256) public purchasedAmount;
 
@@ -26,10 +28,10 @@ contract INKPurchase is Ownable {
 		_purchase(_amount);
 	}
 
-	function purchaseForETH(address _weth) external payable {
+	function purchaseForETH() external payable {
 		ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
 			.ExactInputSingleParams({
-				tokenIn: _weth,
+				tokenIn: weth9,
 				tokenOut: usdc,
 				fee: 3000,
 				recipient: address(this),

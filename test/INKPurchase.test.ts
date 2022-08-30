@@ -9,7 +9,6 @@ describe("INKPurchase", () => {
 	let INKPurchase: INKPurchase
 	let swapRouter: Contract
 	let usdc: Contract
-	let weth: Contract
 	let dai: Contract
 	let user: SignerWithAddress
 
@@ -23,7 +22,6 @@ describe("INKPurchase", () => {
 			signer1
 		)
 		usdc = await erc20Factory.deploy("1000000000000000000000000")
-		weth = await erc20Factory.deploy("1000000000000000000000000")
 		dai = await erc20Factory.deploy("1000000000000000000000000")
 
 		swapRouter = await (
@@ -60,7 +58,7 @@ describe("INKPurchase", () => {
 
 	it("test_purchaseForETH", async () => {
 		await expect(
-			await INKPurchase.connect(user).purchaseForETH(weth.address, {
+			await INKPurchase.connect(user).purchaseForETH({
 				value: "200000000000000000000",
 			})
 		)
