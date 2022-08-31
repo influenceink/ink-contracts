@@ -16,6 +16,7 @@
 		"deploy-presale:mumbai": "npx hardhat run --network mumbai scripts/Presale.deploy.ts",
 		"deploy-staking-ink:mumbai": "npx hardhat run --network mumbai scripts/StakingINK.deploy.ts",
 		"deploy-inknftda:mumbai": "npx hardhat run --network mumbai scripts/INKNFTDA.deploy.ts",
+		"deploy-inkpurchase:mumbai": "npx hardhat run --network mumbai scripts/INKPurchase.deploy.ts",
 		"deploy-ink:mainnet": "npx hardhat run --network mainnet scripts/INK.deploy.ts",
 		"deploy-inknft:mainnet": "npx hardhat run --network mainnet scripts/INKNFT.deploy.ts",
 		"deploy-vesting:mainnet": "npx hardhat run --network mainnet scripts/Vesting.deploy.ts",
@@ -24,6 +25,7 @@
 		"deploy-presale:mainnet": "npx hardhat run --network mainnet scripts/Presale.deploy.ts",
 		"deploy-staking-ink:mainnet": "npx hardhat run --network mainnet scripts/StakingINK.deploy.ts",
 		"deploy-inknftda:mainnet": "npx hardhat run --network mainnet scripts/INKNFTDA.deploy.ts",
+		"deploy-inkpurchase:mainnet": "npx hardhat run --network mainnet scripts/INKPurchase.deploy.ts",
 		"verify:mainnet": "npx hardhat verify --network mainnet",
 		"verify:mumbai": "npx hardhat verify --network mumbai"
 	},
