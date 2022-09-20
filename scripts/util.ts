@@ -1,7 +1,7 @@
 import fs from "fs"
 
 export function output(network: string, _newData: object = {}) {
-	fs.open(`./${network}-deployment.json`, "r+", (err, fd) => {
+	fs.open(`./${network}-deployment.json`, "w+", (err, fd) => {
 		if (err) console.log(err)
 	})
 	let data = fs.readFileSync(`./${network}-deployment.json`, {

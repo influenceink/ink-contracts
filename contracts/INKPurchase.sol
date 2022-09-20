@@ -9,22 +9,24 @@ contract INKPurchase is Ownable {
 	using SafeERC20 for IERC20;
 
 	address public immutable usdc;
+	address public treasuryWallet;
 	address public constant weth9 =
-		0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+		0xc778417E063141139Fce010982780140Aa0cD5Ab;
 	ISwapRouter public uniswapRouter;
 	mapping(address => uint256) public purchasedAmount;
 
 	event Purchased(address buyer, uint256 amount);
 
-	constructor(address _routerAddress, address _usdc) {
-		uniswapRouter = ISwapRouter(_routerAddress);
+	constructor(address _treasuryWallet, address _usdc) {
+		treasuryWallet = _treasuryWallet;
+		uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 		usdc = _usdc;
 	}
 
 	// External methods
 
 	function purchaseForUSDC(uint256 _amount) external {
-		IERC20(usdc).safeTransferFrom(msg.sender, address(this), _amount);
+		IERC20(usdc).safeTransferFrom(msg.sender, treasuryWallet, _amount);
 		_purchase(_amount);
 	}
 
@@ -34,7 +36,7 @@ contract INKPurchase is Ownable {
 				tokenIn: weth9,
 				tokenOut: usdc,
 				fee: 3000,
-				recipient: address(this),
+				recipient: treasuryWallet,
 				deadline: block.timestamp + 15,
 				amountIn: msg.value,
 				amountOutMinimum: 0,
@@ -49,14 +51,14 @@ contract INKPurchase is Ownable {
 
 	function purchaseForToken(address _tokenIn, uint256 _amount) external {
 		IERC20(_tokenIn).safeTransferFrom(msg.sender, address(this), _amount);
-		IERC20(_tokenIn).approve(address(uniswapRouter), _amount);
+		IERC20(_tokenIn).safeApprove(address(uniswapRouter), _amount);
 
 		ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
 			.ExactInputSingleParams({
 				tokenIn: _tokenIn,
 				tokenOut: usdc,
 				fee: 3000,
-				recipient: address(this),
+				recipient: treasuryWallet,
 				deadline: block.timestamp + 15,
 				amountIn: _amount,
 				amountOutMinimum: 0,
@@ -72,9 +74,15 @@ contract INKPurchase is Ownable {
 		IERC20(usdc).safeTransfer(_to, IERC20(usdc).balanceOf(address(this)));
 	}
 
+	function changeTreasuryWallet(address _treasuryWallet) external onlyOwner{
+		treasuryWallet = _treasuryWallet;
+	}
+
 	// Internal methods
 
 	function _purchase(uint256 _amount) internal {
+		require(_amount >= 5000 * (10 ** 6), "Purchase: amount must be at least 5000");
+
 		purchasedAmount[msg.sender] += _amount;
 		emit Purchased(msg.sender, _amount);
 	}
