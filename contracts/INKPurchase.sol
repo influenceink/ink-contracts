@@ -10,17 +10,19 @@ contract INKPurchase is Ownable {
 
 	address public immutable usdc;
 	address public treasuryWallet;
-	address public constant weth9 =
-		0xc778417E063141139Fce010982780140Aa0cD5Ab;
+	address public weth9;
+	uint256 public minAmount;
 	ISwapRouter public uniswapRouter;
 	mapping(address => uint256) public purchasedAmount;
 
 	event Purchased(address buyer, uint256 amount);
 
-	constructor(address _treasuryWallet, address _usdc) {
+	constructor(address _treasuryWallet, address _usdc, address _weth9, uint256 _minAmount) {
 		treasuryWallet = _treasuryWallet;
 		uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 		usdc = _usdc;
+		weth9 = _weth9;
+		minAmount = _minAmount;
 	}
 
 	// External methods
@@ -75,13 +77,19 @@ contract INKPurchase is Ownable {
 	}
 
 	function changeTreasuryWallet(address _treasuryWallet) external onlyOwner{
+		require(_treasuryWallet != address(0), "Purchase: treasury wallet is the zero address");
 		treasuryWallet = _treasuryWallet;
+	}
+
+	function setMinimalAmount(uint256 _minAmount) external onlyOwner{
+		require(_minAmount > 0, "Purchase: minimal amount is zero");
+		minAmount = _minAmount;
 	}
 
 	// Internal methods
 
 	function _purchase(uint256 _amount) internal {
-		require(_amount >= 5000 * (10 ** 6), "Purchase: amount must be at least 5000");
+		require(_amount >= minAmount * (10 ** 6), "Purchase: amount must be at least 5000");
 
 		purchasedAmount[msg.sender] += _amount;
 		emit Purchased(msg.sender, _amount);
