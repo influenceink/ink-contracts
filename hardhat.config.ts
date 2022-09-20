@@ -25,8 +25,8 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 const config: HardhatUserConfig = {
 	solidity: "0.8.4",
 	networks: {
-		mainnet: {
-			url: process.env.MAINNET_RPC || "",
+		ethereum: {
+			url: process.env.ETHEREUM_RPC || "",
 			accounts:
 				process.env.PRIVATE_KEY !== undefined
 					? [`0x${process.env.PRIVATE_KEY}`]
@@ -34,6 +34,13 @@ const config: HardhatUserConfig = {
 		},
 		mumbai: {
 			url: process.env.MUMBAI_RPC || "",
+			accounts:
+				process.env.PRIVATE_KEY !== undefined
+					? [`0x${process.env.PRIVATE_KEY}`]
+					: [],
+		},
+		rinkeby: {
+			url: process.env.RINKEBY_RPC || "",
 			accounts:
 				process.env.PRIVATE_KEY !== undefined
 					? [`0x${process.env.PRIVATE_KEY}`]
