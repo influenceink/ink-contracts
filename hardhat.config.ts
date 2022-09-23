@@ -32,6 +32,13 @@ const config: HardhatUserConfig = {
 					? [`0x${process.env.PRIVATE_KEY}`]
 					: [],
 		},
+		polygon: {
+			url: process.env.POLYGON_RPC || "",
+			accounts:
+				process.env.PRIVATE_KEY !== undefined
+					? [`0x${process.env.PRIVATE_KEY}`]
+					: [],
+		},
 		mumbai: {
 			url: process.env.MUMBAI_RPC || "",
 			accounts:

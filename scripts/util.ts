@@ -1,7 +1,7 @@
 import fs from "fs"
 
-export function output(network: string, _newData: object = {}) {
-	fs.open(`./${network}-deployment.json`, "w+", (err, fd) => {
+export async function output(network: string, _newData: object = {}) {
+	await fs.open(`./${network}-deployment.json`, "w+", (err, fd) => {
 		if (err) console.log(err)
 	})
 	let data = fs.readFileSync(`./${network}-deployment.json`, {
@@ -11,6 +11,7 @@ export function output(network: string, _newData: object = {}) {
 
 	fs.writeFileSync(
 		`./${network}-deployment.json`,
-		JSON.stringify({ ...JSON.parse(data), ..._newData })
+		JSON.stringify({ ...JSON.parse(data), ..._newData }),
+		{ flag: "w+" }
 	)
 }

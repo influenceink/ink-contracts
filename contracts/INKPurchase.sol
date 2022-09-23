@@ -51,23 +51,20 @@ contract INKPurchase is Ownable {
 		_purchase(usdcAmount);
 	}
 
-	function purchaseForToken(address _tokenIn, uint256 _amount) external {
+	function purchaseForToken(address _tokenIn, uint256 _amount, bytes memory path) external {
 		IERC20(_tokenIn).safeTransferFrom(msg.sender, address(this), _amount);
 		IERC20(_tokenIn).safeApprove(address(uniswapRouter), _amount);
 
-		ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
-			.ExactInputSingleParams({
-				tokenIn: _tokenIn,
-				tokenOut: usdc,
-				fee: 3000,
+		ISwapRouter.ExactInputParams memory params = ISwapRouter
+			.ExactInputParams({
+				path: path,
 				recipient: treasuryWallet,
 				deadline: block.timestamp + 15,
 				amountIn: _amount,
-				amountOutMinimum: 0,
-				sqrtPriceLimitX96: 0
+				amountOutMinimum: 0
 			});
 
-		uint256 usdcAmount = uniswapRouter.exactInputSingle(params);
+		uint256 usdcAmount = uniswapRouter.exactInput(params);
 		_purchase(usdcAmount);
 	}
 
