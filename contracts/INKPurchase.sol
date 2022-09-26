@@ -32,20 +32,17 @@ contract INKPurchase is Ownable {
 		_purchase(_amount);
 	}
 
-	function purchaseForETH() external payable {
-		ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
-			.ExactInputSingleParams({
-				tokenIn: weth9,
-				tokenOut: usdc,
-				fee: 3000,
+	function purchaseForETH(bytes memory path) external payable {
+		ISwapRouter.ExactInputParams memory params = ISwapRouter
+			.ExactInputParams({
+				path: path,
 				recipient: treasuryWallet,
 				deadline: block.timestamp + 15,
 				amountIn: msg.value,
-				amountOutMinimum: 0,
-				sqrtPriceLimitX96: 0
+				amountOutMinimum: 0
 			});
 
-		uint256 usdcAmount = uniswapRouter.exactInputSingle{
+		uint256 usdcAmount = uniswapRouter.exactInput{
 			value: msg.value
 		}(params);
 		_purchase(usdcAmount);
