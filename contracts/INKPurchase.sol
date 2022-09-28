@@ -32,42 +32,36 @@ contract INKPurchase is Ownable {
 		_purchase(_amount);
 	}
 
-	function purchaseForETH() external payable {
-		ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
-			.ExactInputSingleParams({
-				tokenIn: weth9,
-				tokenOut: usdc,
-				fee: 3000,
+	function purchaseForETH(bytes memory path) external payable {
+		ISwapRouter.ExactInputParams memory params = ISwapRouter
+			.ExactInputParams({
+				path: path,
 				recipient: treasuryWallet,
 				deadline: block.timestamp + 15,
 				amountIn: msg.value,
-				amountOutMinimum: 0,
-				sqrtPriceLimitX96: 0
+				amountOutMinimum: 0
 			});
 
-		uint256 usdcAmount = uniswapRouter.exactInputSingle{
+		uint256 usdcAmount = uniswapRouter.exactInput{
 			value: msg.value
 		}(params);
 		_purchase(usdcAmount);
 	}
 
-	function purchaseForToken(address _tokenIn, uint256 _amount) external {
+	function purchaseForToken(address _tokenIn, uint256 _amount, bytes memory path) external {
 		IERC20(_tokenIn).safeTransferFrom(msg.sender, address(this), _amount);
 		IERC20(_tokenIn).safeApprove(address(uniswapRouter), _amount);
 
-		ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
-			.ExactInputSingleParams({
-				tokenIn: _tokenIn,
-				tokenOut: usdc,
-				fee: 3000,
+		ISwapRouter.ExactInputParams memory params = ISwapRouter
+			.ExactInputParams({
+				path: path,
 				recipient: treasuryWallet,
 				deadline: block.timestamp + 15,
 				amountIn: _amount,
-				amountOutMinimum: 0,
-				sqrtPriceLimitX96: 0
+				amountOutMinimum: 0
 			});
 
-		uint256 usdcAmount = uniswapRouter.exactInputSingle(params);
+		uint256 usdcAmount = uniswapRouter.exactInput(params);
 		_purchase(usdcAmount);
 	}
 
