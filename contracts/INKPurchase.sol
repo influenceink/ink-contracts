@@ -81,14 +81,14 @@ contract INKPurchase is Ownable {
 		IERC20(usdc).safeTransfer(_to, IERC20(usdc).balanceOf(address(this)));
 	}
 
-	function withdrawAsset(address token, address _to) external payable onlyOwner {
-		if (token == address(0)) {
+	function withdrawAsset(address _token, address _to) external payable onlyOwner {
+		if (_token == address(0)) {
 			require(address(this).balance > 0, "Purchase: no balance");
 			payable(_to).transfer(address(this).balance);
 		} else {
-			IERC20(token).safeTransfer(
+			IERC20(_token).safeTransfer(
 				_to,
-				IERC20(token).balanceOf(address(this))
+				IERC20(_token).balanceOf(address(this))
 			);
 		}
 	}
