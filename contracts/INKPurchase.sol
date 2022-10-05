@@ -17,9 +17,16 @@ contract INKPurchase is Ownable {
 
 	event Purchased(address buyer, uint256 amount);
 
-	constructor(address _treasuryWallet, address _usdc, address _weth9, uint256 _minAmount) {
+	constructor(
+		address _treasuryWallet,
+		address _usdc,
+		address _weth9,
+		uint256 _minAmount
+	) {
 		treasuryWallet = _treasuryWallet;
-		uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+		uniswapRouter = ISwapRouter(
+			0xE592427A0AEce92De3Edee1F18E0157C05861564
+		);
 		usdc = _usdc;
 		weth9 = _weth9;
 		minAmount = _minAmount;
@@ -42,13 +49,17 @@ contract INKPurchase is Ownable {
 				amountOutMinimum: 0
 			});
 
-		uint256 usdcAmount = uniswapRouter.exactInput{
-			value: msg.value
-		}(params);
+		uint256 usdcAmount = uniswapRouter.exactInput{ value: msg.value }(
+			params
+		);
 		_purchase(usdcAmount);
 	}
 
-	function purchaseForToken(address _tokenIn, uint256 _amount, bytes memory path) external {
+	function purchaseForToken(
+		address _tokenIn,
+		uint256 _amount,
+		bytes memory path
+	) external {
 		IERC20(_tokenIn).safeTransferFrom(msg.sender, address(this), _amount);
 		IERC20(_tokenIn).safeApprove(address(uniswapRouter), _amount);
 
@@ -70,12 +81,29 @@ contract INKPurchase is Ownable {
 		IERC20(usdc).safeTransfer(_to, IERC20(usdc).balanceOf(address(this)));
 	}
 
-	function changeTreasuryWallet(address _treasuryWallet) external onlyOwner{
-		require(_treasuryWallet != address(0), "Purchase: treasury wallet is the zero address");
+	function withdrawAsset(address token) external payable onlyOwner {
+		if (token == address(0)) {
+			payable(treasuryWallet).transfer(address(this).balance);
+		} else {
+			IERC20(token).safeTransfer(
+				treasuryWallet,
+				IERC20(token).balanceOf(address(this))
+			);
+		}
+	}
+
+	function changeTreasuryWallet(address _treasuryWallet)
+		external
+		onlyOwner
+	{
+		require(
+			_treasuryWallet != address(0),
+			"Purchase: treasury wallet is the zero address"
+		);
 		treasuryWallet = _treasuryWallet;
 	}
 
-	function setMinimalAmount(uint256 _minAmount) external onlyOwner{
+	function setMinimalAmount(uint256 _minAmount) external onlyOwner {
 		require(_minAmount > 0, "Purchase: minimal amount is zero");
 		minAmount = _minAmount;
 	}
@@ -83,7 +111,10 @@ contract INKPurchase is Ownable {
 	// Internal methods
 
 	function _purchase(uint256 _amount) internal {
-		require(_amount >= minAmount * (10 ** 6), "Purchase: amount must be at least 5000");
+		require(
+			_amount >= minAmount * (10**6),
+			"Purchase: amount must be at least 5000"
+		);
 
 		purchasedAmount[msg.sender] += _amount;
 		emit Purchased(msg.sender, _amount);
