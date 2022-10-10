@@ -2,12 +2,12 @@
 	"ethereum": {
 		"treasuryWallet": "0x35487A421763719bAc4525dbd70b83fDb2F30a21",
 		"usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-		"minAmount": "5000000"
+		"minAmount": "5000000000"
 	},
 	"polygon": {
 		"treasuryWallet": "0x35487A421763719bAc4525dbd70b83fDb2F30a21",
 		"usdc": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-		"minAmount": "5000000"
+		"minAmount": "5000000000"
 	},
 	"mumbai": {
 		"treasuryWallet": "0x35487A421763719bAc4525dbd70b83fDb2F30a21",
