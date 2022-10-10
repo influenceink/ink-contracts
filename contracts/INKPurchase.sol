@@ -10,7 +10,6 @@ contract INKPurchase is Ownable {
 
 	address public immutable usdc;
 	address public treasuryWallet;
-	address public weth9;
 	uint256 public minAmount;
 	ISwapRouter public uniswapRouter;
 	mapping(address => uint256) public purchasedAmount;
@@ -20,7 +19,6 @@ contract INKPurchase is Ownable {
 	constructor(
 		address _treasuryWallet,
 		address _usdc,
-		address _weth9,
 		uint256 _minAmount
 	) {
 		treasuryWallet = _treasuryWallet;
@@ -28,7 +26,6 @@ contract INKPurchase is Ownable {
 			0xE592427A0AEce92De3Edee1F18E0157C05861564
 		);
 		usdc = _usdc;
-		weth9 = _weth9;
 		minAmount = _minAmount;
 	}
 

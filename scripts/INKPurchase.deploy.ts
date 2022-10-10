@@ -7,7 +7,6 @@ async function main() {
 	const inkPurchase = await INKPurchase.deploy(
 		inkpurchaseParams.treasuryWallet,
 		inkpurchaseParams.usdc,
-		inkpurchaseParams.weth9,
 		inkpurchaseParams.minAmount
 	)
 
