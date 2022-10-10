@@ -1,6 +1,17 @@
 {
-	"treasuryWallet": "0xb367f977d2E88ACFb9206d86c62073dd6ddb7855",
-	"usdc": "0x8a1f7023c743E3d2149FfeA0EBcc685af0e8e9b6",
-	"weth9": "0xc778417E063141139Fce010982780140Aa0cD5Ab",
-	"minAmount": "5000"
+	"ethereum": {
+		"treasuryWallet": "0x35487A421763719bAc4525dbd70b83fDb2F30a21",
+		"usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+		"minAmount": "5000000000"
+	},
+	"polygon": {
+		"treasuryWallet": "0x35487A421763719bAc4525dbd70b83fDb2F30a21",
+		"usdc": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+		"minAmount": "5000000000"
+	},
+	"mumbai": {
+		"treasuryWallet": "0x35487A421763719bAc4525dbd70b83fDb2F30a21",
+		"usdc": "0xBDEEA7A064934B0cD51BC4564E7c40cda4c669A6",
+		"minAmount": "5"
+	}
 }

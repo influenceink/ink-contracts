@@ -10,7 +10,6 @@ contract INKPurchase is Ownable {
 
 	address public immutable usdc;
 	address public treasuryWallet;
-	address public weth9;
 	uint256 public minAmount;
 	ISwapRouter public uniswapRouter;
 	mapping(address => uint256) public purchasedAmount;
@@ -20,7 +19,6 @@ contract INKPurchase is Ownable {
 	constructor(
 		address _treasuryWallet,
 		address _usdc,
-		address _weth9,
 		uint256 _minAmount
 	) {
 		treasuryWallet = _treasuryWallet;
@@ -28,7 +26,6 @@ contract INKPurchase is Ownable {
 			0xE592427A0AEce92De3Edee1F18E0157C05861564
 		);
 		usdc = _usdc;
-		weth9 = _weth9;
 		minAmount = _minAmount;
 	}
 
@@ -113,8 +110,8 @@ contract INKPurchase is Ownable {
 
 	function _purchase(uint256 _amount) internal {
 		require(
-			_amount >= minAmount * (10**6),
-			"Purchase: amount must be at least 5000"
+			_amount >= minAmount,
+			"Purchase: amount must be at least minimum amount"
 		);
 
 		purchasedAmount[msg.sender] += _amount;

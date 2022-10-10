@@ -5,10 +5,9 @@ import inkpurchaseParams from "./deploymentParams/inkpurchase.json"
 async function main() {
 	const INKPurchase = await ethers.getContractFactory("INKPurchase")
 	const inkPurchase = await INKPurchase.deploy(
-		inkpurchaseParams.treasuryWallet,
-		inkpurchaseParams.usdc,
-		inkpurchaseParams.weth9,
-		inkpurchaseParams.minAmount
+		inkpurchaseParams.ethereum.treasuryWallet,
+		inkpurchaseParams.ethereum.usdc,
+		inkpurchaseParams.ethereum.minAmount
 	)
 
 	await inkPurchase.deployed()
