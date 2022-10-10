@@ -110,7 +110,7 @@ contract INKPurchase is Ownable {
 
 	function _purchase(uint256 _amount) internal {
 		require(
-			_amount >= minAmount * (10**3),
+			_amount >= minAmount,
 			"Purchase: amount must be at least minimum amount"
 		);
 
